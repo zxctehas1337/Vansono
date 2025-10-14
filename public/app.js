@@ -313,13 +313,27 @@ async function startCall(callType) {
       return;
     }
     
-    // Get user media
+    // Get user media with improved constraints
     const constraints = {
       audio: true,
-      video: callType === 'video'
+      video: callType === 'video' ? {
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        frameRate: { ideal: 30, max: 60 }
+      } : false
     };
     
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      console.warn('Failed to get media with constraints, trying basic constraints:', error);
+      // Fallback to basic constraints
+      const basicConstraints = {
+        audio: true,
+        video: callType === 'video'
+      };
+      localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+    }
     
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
@@ -345,15 +359,35 @@ async function startCall(callType) {
       }
     };
     
+    // Handle ICE connection state changes
+    peerConnection.oniceconnectionstatechange = () => {
+      if (peerConnection && peerConnection.iceConnectionState) {
+        console.log('ICE connection state:', peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'failed') {
+          showNotification('Ошибка ICE соединения', 'error');
+          endCall();
+        }
+      }
+    };
+    
+    // Handle ICE gathering state changes
+    peerConnection.onicegatheringstatechange = () => {
+      if (peerConnection && peerConnection.iceGatheringState) {
+        console.log('ICE gathering state:', peerConnection.iceGatheringState);
+      }
+    };
+    
     // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state:', peerConnection.connectionState);
-      if (peerConnection.connectionState === 'connected') {
-        elements.callStatus.textContent = 'Подключено';
-        showNotification('Соединение установлено', 'success');
-      } else if (peerConnection.connectionState === 'failed') {
-        showNotification('Ошибка соединения', 'error');
-        endCall();
+      if (peerConnection && peerConnection.connectionState) {
+        console.log('Connection state:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'connected') {
+          elements.callStatus.textContent = 'Подключено';
+          showNotification('Соединение установлено', 'success');
+        } else if (peerConnection.connectionState === 'failed') {
+          showNotification('Ошибка соединения', 'error');
+          endCall();
+        }
       }
     };
     
@@ -379,7 +413,7 @@ async function startCall(callType) {
     
     // Set timeout for call
     callTimeout = setTimeout(() => {
-      if (isInCall && peerConnection.connectionState !== 'connected') {
+      if (isInCall && peerConnection && peerConnection.connectionState !== 'connected') {
         showNotification('Не удалось установить соединение', 'error');
         endCall();
       }
@@ -408,13 +442,27 @@ async function acceptCall() {
       return;
     }
     
-    // Get user media
+    // Get user media with improved constraints
     const constraints = {
       audio: true,
-      video: callType === 'video'
+      video: callType === 'video' ? {
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        frameRate: { ideal: 30, max: 60 }
+      } : false
     };
     
-    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      console.warn('Failed to get media with constraints, trying basic constraints:', error);
+      // Fallback to basic constraints
+      const basicConstraints = {
+        audio: true,
+        video: callType === 'video'
+      };
+      localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+    }
     
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
@@ -440,15 +488,35 @@ async function acceptCall() {
       }
     };
     
+    // Handle ICE connection state changes
+    peerConnection.oniceconnectionstatechange = () => {
+      if (peerConnection && peerConnection.iceConnectionState) {
+        console.log('ICE connection state:', peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'failed') {
+          showNotification('Ошибка ICE соединения', 'error');
+          endCall();
+        }
+      }
+    };
+    
+    // Handle ICE gathering state changes
+    peerConnection.onicegatheringstatechange = () => {
+      if (peerConnection && peerConnection.iceGatheringState) {
+        console.log('ICE gathering state:', peerConnection.iceGatheringState);
+      }
+    };
+    
     // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state:', peerConnection.connectionState);
-      if (peerConnection.connectionState === 'connected') {
-        elements.callStatus.textContent = 'Подключено';
-        showNotification('Соединение установлено', 'success');
-      } else if (peerConnection.connectionState === 'failed') {
-        showNotification('Ошибка соединения', 'error');
-        endCall();
+      if (peerConnection && peerConnection.connectionState) {
+        console.log('Connection state:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'connected') {
+          elements.callStatus.textContent = 'Подключено';
+          showNotification('Соединение установлено', 'success');
+        } else if (peerConnection.connectionState === 'failed') {
+          showNotification('Ошибка соединения', 'error');
+          endCall();
+        }
       }
     };
     
@@ -461,18 +529,8 @@ async function acceptCall() {
     // Hide incoming call modal
     elements.incomingCallModal.style.display = 'none';
     
-    // Create and send offer
-    try {
-      const offer = await peerConnection.createOffer();
-      await peerConnection.setLocalDescription(offer);
-      
-      socket.emit('offer', {
-        target: incomingCallData.caller,
-        offer: offer
-      });
-    } catch (error) {
-      console.error('Error creating offer:', error);
-    }
+    // Wait for offer from caller
+    console.log('Waiting for offer from caller...');
     
   } catch (error) {
     console.error('Error accepting call:', error);
@@ -494,8 +552,34 @@ async function handleOffer(data) {
       return;
     }
     
+    // Get user media for answering
+    const constraints = {
+      audio: true,
+      video: data.offer.sdp.includes('m=video') ? {
+        width: { ideal: 1280, max: 1920 },
+        height: { ideal: 720, max: 1080 },
+        frameRate: { ideal: 30, max: 60 }
+      } : false
+    };
+    
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      console.warn('Failed to get media with constraints, trying basic constraints:', error);
+      const basicConstraints = {
+        audio: true,
+        video: data.offer.sdp.includes('m=video')
+      };
+      localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+    }
+    
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
+    
+    // Add local stream
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
     
     // Handle remote stream
     peerConnection.ontrack = (event) => {
@@ -513,20 +597,44 @@ async function handleOffer(data) {
       }
     };
     
+    // Handle ICE connection state changes
+    peerConnection.oniceconnectionstatechange = () => {
+      if (peerConnection && peerConnection.iceConnectionState) {
+        console.log('ICE connection state:', peerConnection.iceConnectionState);
+        if (peerConnection.iceConnectionState === 'failed') {
+          showNotification('Ошибка ICE соединения', 'error');
+          endCall();
+        }
+      }
+    };
+    
+    // Handle ICE gathering state changes
+    peerConnection.onicegatheringstatechange = () => {
+      if (peerConnection && peerConnection.iceGatheringState) {
+        console.log('ICE gathering state:', peerConnection.iceGatheringState);
+      }
+    };
+    
     // Handle connection state changes
     peerConnection.onconnectionstatechange = () => {
-      console.log('Connection state:', peerConnection.connectionState);
-      if (peerConnection.connectionState === 'connected') {
-        elements.callStatus.textContent = 'Подключено';
-        showNotification('Соединение установлено', 'success');
-      } else if (peerConnection.connectionState === 'failed') {
-        showNotification('Ошибка соединения', 'error');
-        endCall();
+      if (peerConnection && peerConnection.connectionState) {
+        console.log('Connection state:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'connected') {
+          elements.callStatus.textContent = 'Подключено';
+          showNotification('Соединение установлено', 'success');
+        } else if (peerConnection.connectionState === 'failed') {
+          showNotification('Ошибка соединения', 'error');
+          endCall();
+        }
       }
     };
     
     // Set remote description
     await peerConnection.setRemoteDescription(data.offer);
+    
+    // Show call interface
+    const callType = data.offer.sdp.includes('m=video') ? 'video' : 'audio';
+    showCallInterface(callType);
     
     // Create answer
     const answer = await peerConnection.createAnswer();
@@ -546,19 +654,29 @@ async function handleOffer(data) {
 
 async function handleAnswer(data) {
   try {
-    await peerConnection.setRemoteDescription(data.answer);
+    if (peerConnection && peerConnection.signalingState !== 'closed') {
+      await peerConnection.setRemoteDescription(data.answer);
+      console.log('Answer set successfully');
+    } else {
+      console.warn('Cannot set answer: peerConnection is null or closed');
+    }
   } catch (error) {
     console.error('Error handling answer:', error);
+    showNotification('Ошибка при обработке ответа звонка', 'error');
   }
 }
 
 async function handleIceCandidate(data) {
   try {
-    if (peerConnection) {
+    if (peerConnection && peerConnection.signalingState !== 'closed') {
       await peerConnection.addIceCandidate(data.candidate);
+      console.log('ICE candidate added successfully');
+    } else {
+      console.warn('Cannot add ICE candidate: peerConnection is null or closed');
     }
   } catch (error) {
     console.error('Error handling ICE candidate:', error);
+    // Don't show error notification for ICE candidate errors as they're often not critical
   }
 }
 
@@ -707,4 +825,14 @@ window.addEventListener('load', () => {
   if (roomParam) {
     elements.roomIdInput.value = roomParam;
   }
+});
+document.getElementById('share-room-btn').addEventListener('click', () => {
+  const roomUrl = encodeURIComponent(window.location.href);
+  const message = encodeURIComponent("Присоединяйся ко мне в комнате: " + window.location.href);
+
+  document.getElementById('share-telegram').href = `https://t.me/share/url?url=${roomUrl}&text=${message}`;
+  document.getElementById('share-whatsapp').href = `https://wa.me/?text=${message}`;
+  document.getElementById('share-viber').href = `viber://forward?text=${message}`;
+
+  document.getElementById('share-options').style.display = 'block';
 });
