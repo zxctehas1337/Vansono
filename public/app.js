@@ -9,6 +9,8 @@ let isInCall = false;
 let isMuted = false;
 let isVideoOff = false;
 let incomingCallData = null;
+let otherUsers = [];
+let callTimeout = null;
 
 // WebRTC configuration
 const rtcConfig = {
@@ -86,17 +88,26 @@ function initializeSocket() {
   });
   
   socket.on('room-info', (data) => {
+    otherUsers = data.users.filter(user => user.id !== socket.id);
     updateUsersList(data.users);
     displayMessages(data.messages);
+    
+    // If there's an active call, show call interface
+    if (data.activeCall && data.activeCall.participants.includes(socket.id)) {
+      showCallInterface(data.activeCall.callType);
+    }
   });
   
   socket.on('user-joined', (data) => {
     showNotification(`${data.username} присоединился к комнате`, 'info');
+    otherUsers = otherUsers.filter(user => user.id !== data.id);
+    otherUsers.push(data);
     updateUsersList();
   });
   
   socket.on('user-left', (data) => {
     showNotification(`${data.username} покинул комнату`, 'info');
+    otherUsers = otherUsers.filter(user => user.id !== data.id);
     updateUsersList();
   });
   
@@ -114,6 +125,12 @@ function initializeSocket() {
   socket.on('call-ended', handleCallEnded);
   socket.on('call-accepted', handleCallAccepted);
   socket.on('call-rejected', handleCallRejected);
+  socket.on('call-error', (data) => {
+    showNotification(data.message, 'error');
+    if (isInCall) {
+      endCall();
+    }
+  });
 }
 
 // Event listeners setup
@@ -284,6 +301,18 @@ function updateUsersList(users) {
 // WebRTC functionality
 async function startCall(callType) {
   try {
+    // Check if there are other users in the room
+    if (otherUsers.length === 0) {
+      showNotification('В комнате нет других пользователей', 'error');
+      return;
+    }
+    
+    // Check if already in a call
+    if (isInCall) {
+      showNotification('Вы уже в звонке', 'error');
+      return;
+    }
+    
     // Get user media
     const constraints = {
       audio: true,
@@ -308,23 +337,25 @@ async function startCall(callType) {
     
     // Handle ICE candidates
     peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
+      if (event.candidate && otherUsers.length > 0) {
         socket.emit('ice-candidate', {
-          target: getOtherUserId(),
+          target: otherUsers[0].id,
           candidate: event.candidate
         });
       }
     };
     
-    // Create offer
-    const offer = await peerConnection.createOffer();
-    await peerConnection.setLocalDescription(offer);
-    
-    // Send offer
-    socket.emit('offer', {
-      target: getOtherUserId(),
-      offer: offer
-    });
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log('Connection state:', peerConnection.connectionState);
+      if (peerConnection.connectionState === 'connected') {
+        elements.callStatus.textContent = 'Подключено';
+        showNotification('Соединение установлено', 'success');
+      } else if (peerConnection.connectionState === 'failed') {
+        showNotification('Ошибка соединения', 'error');
+        endCall();
+      }
+    };
     
     // Show call interface
     showCallInterface(callType);
@@ -332,9 +363,31 @@ async function startCall(callType) {
     // Notify server about call start
     socket.emit('start-call', { callType });
     
+    // Create and send offer
+    try {
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      
+      socket.emit('offer', {
+        target: otherUsers[0].id,
+        offer: offer
+      });
+    } catch (error) {
+      console.error('Error creating offer:', error);
+      showNotification('Ошибка при создании предложения звонка', 'error');
+    }
+    
+    // Set timeout for call
+    callTimeout = setTimeout(() => {
+      if (isInCall && peerConnection.connectionState !== 'connected') {
+        showNotification('Не удалось установить соединение', 'error');
+        endCall();
+      }
+    }, 30000); // 30 seconds timeout
+    
   } catch (error) {
     console.error('Error starting call:', error);
-    showNotification('Ошибка при запуске звонка', 'error');
+    showNotification('Ошибка при запуске звонка: ' + error.message, 'error');
   }
 }
 
@@ -348,6 +401,12 @@ function handleIncomingCall(data) {
 async function acceptCall() {
   try {
     const callType = incomingCallData.callType;
+    
+    // Check if already in a call
+    if (isInCall) {
+      showNotification('Вы уже в звонке', 'error');
+      return;
+    }
     
     // Get user media
     const constraints = {
@@ -381,6 +440,18 @@ async function acceptCall() {
       }
     };
     
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log('Connection state:', peerConnection.connectionState);
+      if (peerConnection.connectionState === 'connected') {
+        elements.callStatus.textContent = 'Подключено';
+        showNotification('Соединение установлено', 'success');
+      } else if (peerConnection.connectionState === 'failed') {
+        showNotification('Ошибка соединения', 'error');
+        endCall();
+      }
+    };
+    
     // Accept call
     socket.emit('call-accepted', { target: incomingCallData.caller });
     
@@ -390,9 +461,22 @@ async function acceptCall() {
     // Hide incoming call modal
     elements.incomingCallModal.style.display = 'none';
     
+    // Create and send offer
+    try {
+      const offer = await peerConnection.createOffer();
+      await peerConnection.setLocalDescription(offer);
+      
+      socket.emit('offer', {
+        target: incomingCallData.caller,
+        offer: offer
+      });
+    } catch (error) {
+      console.error('Error creating offer:', error);
+    }
+    
   } catch (error) {
     console.error('Error accepting call:', error);
-    showNotification('Ошибка при принятии звонка', 'error');
+    showNotification('Ошибка при принятии звонка: ' + error.message, 'error');
   }
 }
 
@@ -404,6 +488,12 @@ function rejectCall() {
 
 async function handleOffer(data) {
   try {
+    // Only handle offer if we're not already in a call
+    if (isInCall) {
+      console.log('Already in call, ignoring offer');
+      return;
+    }
+    
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
     
@@ -423,6 +513,18 @@ async function handleOffer(data) {
       }
     };
     
+    // Handle connection state changes
+    peerConnection.onconnectionstatechange = () => {
+      console.log('Connection state:', peerConnection.connectionState);
+      if (peerConnection.connectionState === 'connected') {
+        elements.callStatus.textContent = 'Подключено';
+        showNotification('Соединение установлено', 'success');
+      } else if (peerConnection.connectionState === 'failed') {
+        showNotification('Ошибка соединения', 'error');
+        endCall();
+      }
+    };
+    
     // Set remote description
     await peerConnection.setRemoteDescription(data.offer);
     
@@ -438,6 +540,7 @@ async function handleOffer(data) {
     
   } catch (error) {
     console.error('Error handling offer:', error);
+    showNotification('Ошибка при обработке предложения звонка', 'error');
   }
 }
 
@@ -460,18 +563,26 @@ async function handleIceCandidate(data) {
 }
 
 function handleCallAccepted(data) {
-  elements.callStatus.textContent = 'Подключено';
-  showNotification('Звонок принят', 'success');
+  if (isInCall) {
+    elements.callStatus.textContent = 'Подключено';
+    elements.callParticipant.textContent = data.acceptorName || 'Участник';
+    showNotification('Звонок принят', 'success');
+  }
 }
 
 function handleCallRejected(data) {
-  endCall();
-  showNotification('Звонок отклонен', 'info');
+  if (isInCall) {
+    endCall();
+    showNotification('Звонок отклонен', 'info');
+  }
 }
 
 function handleCallEnded(data) {
-  endCall();
-  showNotification('Звонок завершен', 'info');
+  if (isInCall) {
+    endCall();
+    const reason = data.reason === 'user-disconnected' ? 'Участник покинул звонок' : 'Звонок завершен';
+    showNotification(reason, 'info');
+  }
 }
 
 function showCallInterface(callType) {
@@ -499,7 +610,15 @@ function showCallInterface(callType) {
 }
 
 function endCall() {
+  if (!isInCall) return; // Prevent multiple calls
+  
   isInCall = false;
+  
+  // Clear timeout
+  if (callTimeout) {
+    clearTimeout(callTimeout);
+    callTimeout = null;
+  }
   
   // Close peer connection
   if (peerConnection) {
@@ -521,10 +640,16 @@ function endCall() {
   elements.callInterface.style.display = 'none';
   elements.chatInterface.style.display = 'flex';
   
+  // Hide incoming call modal if open
+  elements.incomingCallModal.style.display = 'none';
+  incomingCallData = null;
+  
+  // Reset call controls
+  isMuted = false;
+  isVideoOff = false;
+  
   // Notify server
   socket.emit('end-call');
-  
-  showNotification('Звонок завершен', 'info');
 }
 
 function toggleMute() {
@@ -557,11 +682,6 @@ function toggleVideo() {
   }
 }
 
-function getOtherUserId() {
-  // This is a simplified implementation
-  // In a real app, you'd need to track other users properly
-  return 'other-user'; // Placeholder
-}
 
 // Utility functions
 function showNotification(message, type = 'info') {

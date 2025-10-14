@@ -34,7 +34,8 @@ io.on('connection', (socket) => {
     if (!rooms.has(roomId)) {
       rooms.set(roomId, {
         users: new Map(),
-        messages: []
+        messages: [],
+        activeCall: null
       });
     }
 
@@ -54,7 +55,8 @@ io.on('connection', (socket) => {
     // Send room info to the user
     socket.emit('room-info', {
       users: Array.from(room.users.values()),
-      messages: room.messages.slice(-50) // Last 50 messages
+      messages: room.messages.slice(-50), // Last 50 messages
+      activeCall: room.activeCall
     });
 
     console.log(`User ${username} joined room ${roomId}`);
@@ -103,36 +105,84 @@ io.on('connection', (socket) => {
   // Call management
   socket.on('start-call', (data) => {
     const room = rooms.get(socket.roomId);
-    if (room) {
+    if (room && room.users.size > 1) {
+      // Check if there's already an active call
+      if (room.activeCall) {
+        socket.emit('call-error', { message: 'В комнате уже идет звонок' });
+        return;
+      }
+      
+      room.activeCall = {
+        caller: socket.id,
+        callerName: socket.username,
+        callType: data.callType,
+        participants: [socket.id]
+      };
+      
       room.users.get(socket.id).isInCall = true;
+      
+      // Send call to other users in the room
       socket.to(socket.roomId).emit('call-started', {
         caller: socket.id,
         callerName: socket.username,
-        callType: data.callType // 'audio' or 'video'
+        callType: data.callType
       });
+      
+      console.log(`Call started by ${socket.username} in room ${socket.roomId}`);
+    } else {
+      socket.emit('call-error', { message: 'В комнате нет других пользователей' });
     }
   });
 
   socket.on('end-call', () => {
     const room = rooms.get(socket.roomId);
-    if (room) {
-      room.users.get(socket.id).isInCall = false;
-      socket.to(socket.roomId).emit('call-ended', {
+    if (room && room.activeCall) {
+      // Reset all users' call status
+      room.users.forEach(user => {
+        user.isInCall = false;
+      });
+      
+      // Clear active call
+      room.activeCall = null;
+      
+      // Notify all users in the room
+      io.to(socket.roomId).emit('call-ended', {
         caller: socket.id
       });
+      
+      console.log(`Call ended by ${socket.username} in room ${socket.roomId}`);
     }
   });
 
   socket.on('call-accepted', (data) => {
-    socket.to(data.target).emit('call-accepted', {
-      acceptor: socket.id
-    });
+    const room = rooms.get(socket.roomId);
+    if (room && room.activeCall) {
+      room.activeCall.participants.push(socket.id);
+      room.users.get(socket.id).isInCall = true;
+      
+      socket.to(data.target).emit('call-accepted', {
+        acceptor: socket.id,
+        acceptorName: socket.username
+      });
+      
+      console.log(`Call accepted by ${socket.username}`);
+    }
   });
 
   socket.on('call-rejected', (data) => {
-    socket.to(data.target).emit('call-rejected', {
-      rejector: socket.id
-    });
+    const room = rooms.get(socket.roomId);
+    if (room && room.activeCall) {
+      // Clear active call if rejected
+      room.activeCall = null;
+      room.users.get(data.target).isInCall = false;
+      
+      socket.to(data.target).emit('call-rejected', {
+        rejector: socket.id,
+        rejectorName: socket.username
+      });
+      
+      console.log(`Call rejected by ${socket.username}`);
+    }
   });
 
   // Handle disconnect
@@ -142,6 +192,20 @@ io.on('connection', (socket) => {
     if (socket.roomId) {
       const room = rooms.get(socket.roomId);
       if (room) {
+        // If user was in a call, end the call
+        if (room.activeCall && room.activeCall.participants.includes(socket.id)) {
+          room.activeCall = null;
+          room.users.forEach(user => {
+            user.isInCall = false;
+          });
+          
+          // Notify others about call end
+          socket.to(socket.roomId).emit('call-ended', {
+            caller: socket.id,
+            reason: 'user-disconnected'
+          });
+        }
+        
         room.users.delete(socket.id);
         
         // Notify others in the room
