@@ -14,18 +14,18 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+    origin: process.env.CORS_ORIGIN || "http://localhost:5173", "https://vansonox.vercel.app",
     methods: ["GET", "POST"]
   }
 });
 
-// Middleware
-app.use(helmet());
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:5173",
+  origin: process.env.CORS_ORIGIN || [
+    "http://localhost:5173", 
+    "https://vansonox.vercel.app"
+  ],
   credentials: true
 }));
-app.use(express.json());
 
 // Rate limiting
 const limiter = rateLimit({
