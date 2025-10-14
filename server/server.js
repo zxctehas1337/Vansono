@@ -7,7 +7,6 @@ const rateLimit = require('express-rate-limit');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
-const redis = require('redis');
 const nodemailer = require('nodemailer');
 require('dotenv').config({ path: './server/config.env' });
 
