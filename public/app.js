@@ -11,14 +11,34 @@ let isVideoOff = false;
 let incomingCallData = null;
 let otherUsers = [];
 let callTimeout = null;
+let pendingIceCandidates = [];
 
 // WebRTC configuration
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' }
-  ]
+    { urls: 'stun:stun2.l.google.com:19302' },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.ekiga.net' },
+    { urls: 'stun:stun.ideasip.com' },
+    { urls: 'stun:stun.schlund.de' },
+    { urls: 'stun:stun.stunprotocol.org:3478' },
+    { urls: 'stun:stun.voiparound.com' },
+    { urls: 'stun:stun.voipbuster.com' },
+    { urls: 'stun:stun.voipstunt.com' },
+    { urls: 'stun:stun.counterpath.com' },
+    { urls: 'stun:stun.1und1.de' },
+    { urls: 'stun:stun.gmx.net' },
+    { urls: 'stun:stun.callwithus.com' },
+    { urls: 'stun:stun.counterpath.net' },
+    { urls: 'stun:stun.internetcalls.com' }
+  ],
+  iceCandidatePoolSize: 10,
+  bundlePolicy: 'max-bundle',
+  rtcpMuxPolicy: 'require',
+  iceTransportPolicy: 'all'
 };
 
 // DOM elements
@@ -56,6 +76,7 @@ const elements = {
   localVideo: document.getElementById('local-video'),
   muteBtn: document.getElementById('mute-btn'),
   videoBtn: document.getElementById('video-btn'),
+  enableAudioBtn: document.getElementById('enable-audio-btn'),
   hangupBtn: document.getElementById('hangup-btn'),
   
   incomingCallerName: document.getElementById('incoming-caller-name'),
@@ -161,6 +182,7 @@ function setupEventListeners() {
   elements.endCallBtn.addEventListener('click', endCall);
   elements.muteBtn.addEventListener('click', toggleMute);
   elements.videoBtn.addEventListener('click', toggleVideo);
+  elements.enableAudioBtn.addEventListener('click', enableAudio);
   elements.hangupBtn.addEventListener('click', endCall);
   
   // Incoming call modal
@@ -299,6 +321,122 @@ function updateUsersList(users) {
 }
 
 // WebRTC functionality
+async function createPeerConnection() {
+  // Close existing connection if any
+  if (peerConnection) {
+    peerConnection.close();
+  }
+  
+  // Create new peer connection
+  peerConnection = new RTCPeerConnection(rtcConfig);
+  
+  // Add local stream tracks
+  if (localStream) {
+    localStream.getTracks().forEach(track => {
+      console.log('Adding track:', track.kind, track.enabled);
+      peerConnection.addTrack(track, localStream);
+    });
+  }
+  
+  // Handle remote stream
+  peerConnection.ontrack = (event) => {
+    console.log('Received remote track:', event.track.kind);
+    remoteStream = event.streams[0];
+    elements.remoteVideo.srcObject = remoteStream;
+    
+    // Ensure audio is not muted for remote stream
+    if (event.track.kind === 'audio') {
+      console.log('Audio track received and enabled');
+      // Force play audio
+      elements.remoteVideo.play().catch(e => {
+        console.log('Auto-play prevented, showing enable audio button');
+        elements.enableAudioBtn.style.display = 'block';
+      });
+    }
+  };
+  
+  // Handle ICE candidates
+  peerConnection.onicecandidate = (event) => {
+    if (event.candidate) {
+      const target = incomingCallData ? incomingCallData.caller : (otherUsers.length > 0 ? otherUsers[0].id : null);
+      if (target) {
+        socket.emit('ice-candidate', {
+          target: target,
+          candidate: event.candidate
+        });
+      }
+    }
+  };
+  
+  // Handle ICE connection state changes
+  peerConnection.oniceconnectionstatechange = () => {
+    if (peerConnection && peerConnection.iceConnectionState) {
+      console.log('ICE connection state:', peerConnection.iceConnectionState);
+      
+      switch (peerConnection.iceConnectionState) {
+        case 'connected':
+          console.log('ICE connection established successfully');
+          showNotification('Соединение установлено', 'success');
+          break;
+        case 'completed':
+          console.log('ICE connection completed');
+          break;
+        case 'failed':
+          console.log('ICE connection failed');
+          showNotification('Ошибка ICE соединения', 'error');
+          endCall();
+          break;
+        case 'disconnected':
+          console.log('ICE connection disconnected');
+          break;
+        case 'closed':
+          console.log('ICE connection closed');
+          break;
+      }
+    }
+  };
+  
+  // Handle ICE gathering state changes
+  peerConnection.onicegatheringstatechange = () => {
+    if (peerConnection && peerConnection.iceGatheringState) {
+      console.log('ICE gathering state:', peerConnection.iceGatheringState);
+    }
+  };
+  
+  // Handle connection state changes
+  peerConnection.onconnectionstatechange = () => {
+    if (peerConnection && peerConnection.connectionState) {
+      console.log('Connection state:', peerConnection.connectionState);
+      
+      switch (peerConnection.connectionState) {
+        case 'connected':
+          elements.callStatus.textContent = 'Подключено';
+          showNotification('Соединение установлено', 'success');
+          // Clear timeout when connected
+          if (callTimeout) {
+            clearTimeout(callTimeout);
+            callTimeout = null;
+          }
+          break;
+        case 'connecting':
+          elements.callStatus.textContent = 'Подключение...';
+          break;
+        case 'failed':
+          console.log('Connection failed');
+          showNotification('Ошибка соединения', 'error');
+          endCall();
+          break;
+        case 'disconnected':
+          console.log('Connection disconnected');
+          break;
+        case 'closed':
+          console.log('Connection closed');
+          break;
+      }
+    }
+  };
+}
+
 async function startCall(callType) {
   try {
     // Check if there are other users in the room
@@ -341,67 +479,7 @@ async function startCall(callType) {
     }
     
     // Create peer connection
-    peerConnection = new RTCPeerConnection(rtcConfig);
-    
-    // Add local stream tracks
-    localStream.getTracks().forEach(track => {
-      console.log('Adding track:', track.kind, track.enabled);
-      peerConnection.addTrack(track, localStream);
-    });
-    
-    // Handle remote stream
-    peerConnection.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
-      remoteStream = event.streams[0];
-      elements.remoteVideo.srcObject = remoteStream;
-      
-      // Ensure audio is not muted for remote stream
-      if (event.track.kind === 'audio') {
-        console.log('Audio track received and enabled');
-      }
-    };
-    
-    // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && otherUsers.length > 0) {
-        socket.emit('ice-candidate', {
-          target: otherUsers[0].id,
-          candidate: event.candidate
-        });
-      }
-    };
-    
-    // Handle ICE connection state changes
-    peerConnection.oniceconnectionstatechange = () => {
-      if (peerConnection && peerConnection.iceConnectionState) {
-        console.log('ICE connection state:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'failed') {
-          showNotification('Ошибка ICE соединения', 'error');
-          endCall();
-        }
-      }
-    };
-    
-    // Handle ICE gathering state changes
-    peerConnection.onicegatheringstatechange = () => {
-      if (peerConnection && peerConnection.iceGatheringState) {
-        console.log('ICE gathering state:', peerConnection.iceGatheringState);
-      }
-    };
-    
-    // Handle connection state changes
-    peerConnection.onconnectionstatechange = () => {
-      if (peerConnection && peerConnection.connectionState) {
-        console.log('Connection state:', peerConnection.connectionState);
-        if (peerConnection.connectionState === 'connected') {
-          elements.callStatus.textContent = 'Подключено';
-          showNotification('Соединение установлено', 'success');
-        } else if (peerConnection.connectionState === 'failed') {
-          showNotification('Ошибка соединения', 'error');
-          endCall();
-        }
-      }
-    };
+    await createPeerConnection();
     
     // Show call interface
     showCallInterface(callType);
@@ -426,10 +504,11 @@ async function startCall(callType) {
     // Set timeout for call
     callTimeout = setTimeout(() => {
       if (isInCall && peerConnection && peerConnection.connectionState !== 'connected') {
-        showNotification('Не удалось установить соединение', 'error');
+        console.log('Call timeout - connection state:', peerConnection.connectionState);
+        showNotification('Не удалось установить соединение за 60 секунд', 'error');
         endCall();
       }
-    }, 30000); // 30 seconds timeout
+    }, 60000); // 60 seconds timeout
     
   } catch (error) {
     console.error('Error starting call:', error);
@@ -492,68 +571,8 @@ async function acceptCall() {
       console.log('Media stream obtained with basic constraints:', localStream.getTracks().map(t => t.kind));
     }
     
-    // Create peer connection
-    peerConnection = new RTCPeerConnection(rtcConfig);
-    
-    // Add local stream tracks
-    localStream.getTracks().forEach(track => {
-      console.log('Adding track:', track.kind, track.enabled);
-      peerConnection.addTrack(track, localStream);
-    });
-    
-    // Handle remote stream
-    peerConnection.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
-      remoteStream = event.streams[0];
-      elements.remoteVideo.srcObject = remoteStream;
-      
-      // Ensure audio is not muted for remote stream
-      if (event.track.kind === 'audio') {
-        console.log('Audio track received and enabled');
-      }
-    };
-    
-    // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit('ice-candidate', {
-          target: incomingCallData.caller,
-          candidate: event.candidate
-        });
-      }
-    };
-    
-    // Handle ICE connection state changes
-    peerConnection.oniceconnectionstatechange = () => {
-      if (peerConnection && peerConnection.iceConnectionState) {
-        console.log('ICE connection state:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'failed') {
-          showNotification('Ошибка ICE соединения', 'error');
-          endCall();
-        }
-      }
-    };
-    
-    // Handle ICE gathering state changes
-    peerConnection.onicegatheringstatechange = () => {
-      if (peerConnection && peerConnection.iceGatheringState) {
-        console.log('ICE gathering state:', peerConnection.iceGatheringState);
-      }
-    };
-    
-    // Handle connection state changes
-    peerConnection.onconnectionstatechange = () => {
-      if (peerConnection && peerConnection.connectionState) {
-        console.log('Connection state:', peerConnection.connectionState);
-        if (peerConnection.connectionState === 'connected') {
-          elements.callStatus.textContent = 'Подключено';
-          showNotification('Соединение установлено', 'success');
-        } else if (peerConnection.connectionState === 'failed') {
-          showNotification('Ошибка соединения', 'error');
-          endCall();
-        }
-      }
-    };
+    // Create peer connection using centralized function
+    await createPeerConnection();
     
     // Accept call
     socket.emit('call-accepted', { target: incomingCallData.caller });
@@ -564,8 +583,7 @@ async function acceptCall() {
     // Hide incoming call modal
     elements.incomingCallModal.style.display = 'none';
     
-    // Wait for offer from caller
-    console.log('Waiting for offer from caller...');
+    console.log('Call accepted, peer connection ready for offer');
     
   } catch (error) {
     console.error('Error accepting call:', error);
@@ -608,68 +626,8 @@ async function handleOffer(data) {
       localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
     }
     
-    // Create peer connection
-    peerConnection = new RTCPeerConnection(rtcConfig);
-    
-    // Add local stream tracks
-    localStream.getTracks().forEach(track => {
-      console.log('Adding track:', track.kind, track.enabled);
-      peerConnection.addTrack(track, localStream);
-    });
-    
-    // Handle remote stream
-    peerConnection.ontrack = (event) => {
-      console.log('Received remote track:', event.track.kind);
-      remoteStream = event.streams[0];
-      elements.remoteVideo.srcObject = remoteStream;
-      
-      // Ensure audio is not muted for remote stream
-      if (event.track.kind === 'audio') {
-        console.log('Audio track received and enabled');
-      }
-    };
-    
-    // Handle ICE candidates
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate) {
-        socket.emit('ice-candidate', {
-          target: data.sender,
-          candidate: event.candidate
-        });
-      }
-    };
-    
-    // Handle ICE connection state changes
-    peerConnection.oniceconnectionstatechange = () => {
-      if (peerConnection && peerConnection.iceConnectionState) {
-        console.log('ICE connection state:', peerConnection.iceConnectionState);
-        if (peerConnection.iceConnectionState === 'failed') {
-          showNotification('Ошибка ICE соединения', 'error');
-          endCall();
-        }
-      }
-    };
-    
-    // Handle ICE gathering state changes
-    peerConnection.onicegatheringstatechange = () => {
-      if (peerConnection && peerConnection.iceGatheringState) {
-        console.log('ICE gathering state:', peerConnection.iceGatheringState);
-      }
-    };
-    
-    // Handle connection state changes
-    peerConnection.onconnectionstatechange = () => {
-      if (peerConnection && peerConnection.connectionState) {
-        console.log('Connection state:', peerConnection.connectionState);
-        if (peerConnection.connectionState === 'connected') {
-          elements.callStatus.textContent = 'Подключено';
-          showNotification('Соединение установлено', 'success');
-        } else if (peerConnection.connectionState === 'failed') {
-          showNotification('Ошибка соединения', 'error');
-          endCall();
-        }
-      }
-    };
+    // Create peer connection using centralized function
+    await createPeerConnection();
     
     // Set remote description
     await peerConnection.setRemoteDescription(data.offer);
@@ -700,6 +658,9 @@ async function handleAnswer(data) {
     if (peerConnection && peerConnection.signalingState !== 'closed') {
       await peerConnection.setRemoteDescription(data.answer);
       console.log('Answer set successfully');
+      
+      // Process any pending ICE candidates
+      await processPendingIceCandidates();
     } else {
       console.warn('Cannot set answer: peerConnection is null or closed');
     }
@@ -711,15 +672,33 @@ async function handleAnswer(data) {
 
 async function handleIceCandidate(data) {
   try {
-    if (peerConnection && peerConnection.signalingState !== 'closed') {
+    if (peerConnection && peerConnection.signalingState !== 'closed' && peerConnection.connectionState !== 'closed') {
       await peerConnection.addIceCandidate(data.candidate);
       console.log('ICE candidate added successfully');
     } else {
-      console.warn('Cannot add ICE candidate: peerConnection is null or closed');
+      console.warn('Cannot add ICE candidate: peerConnection is null or closed, signaling state:', peerConnection?.signalingState, 'connection state:', peerConnection?.connectionState);
+      // Buffer the candidate for later use
+      pendingIceCandidates.push(data.candidate);
     }
   } catch (error) {
     console.error('Error handling ICE candidate:', error);
     // Don't show error notification for ICE candidate errors as they're often not critical
+  }
+}
+
+// Function to process pending ICE candidates
+async function processPendingIceCandidates() {
+  if (peerConnection && pendingIceCandidates.length > 0) {
+    console.log(`Processing ${pendingIceCandidates.length} pending ICE candidates`);
+    for (const candidate of pendingIceCandidates) {
+      try {
+        await peerConnection.addIceCandidate(candidate);
+        console.log('Pending ICE candidate added successfully');
+      } catch (error) {
+        console.error('Error adding pending ICE candidate:', error);
+      }
+    }
+    pendingIceCandidates = [];
   }
 }
 
@@ -747,7 +726,12 @@ function handleCallEnded(data) {
 }
 
 function showCallInterface(callType) {
-  // Don't set isInCall here as it should already be set by caller
+  // Set isInCall flag if not already set
+  if (!isInCall) {
+    isInCall = true;
+    console.log('Setting isInCall to true in showCallInterface');
+  }
+  
   elements.chatInterface.style.display = 'none';
   elements.callInterface.style.display = 'flex';
   
@@ -803,6 +787,9 @@ function endCall() {
   elements.remoteVideo.srcObject = null;
   elements.localVideo.srcObject = null;
   
+  // Clear pending ICE candidates
+  pendingIceCandidates = [];
+  
   // Hide call interface
   elements.callInterface.style.display = 'none';
   elements.chatInterface.style.display = 'flex';
@@ -814,11 +801,26 @@ function endCall() {
   // Reset call controls
   isMuted = false;
   isVideoOff = false;
+  elements.enableAudioBtn.style.display = 'none';
   
   // Notify server
   socket.emit('end-call');
   
   console.log('Call ended, isInCall reset to:', isInCall);
+}
+
+function enableAudio() {
+  if (elements.remoteVideo) {
+    elements.remoteVideo.muted = false;
+    elements.remoteVideo.play().then(() => {
+      console.log('Audio enabled and playing');
+      elements.enableAudioBtn.style.display = 'none';
+      showNotification('Звук включен', 'success');
+    }).catch(error => {
+      console.error('Error enabling audio:', error);
+      showNotification('Не удалось включить звук', 'error');
+    });
+  }
 }
 
 function toggleMute() {

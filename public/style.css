@@ -615,6 +615,14 @@ body {
   background: #c82333;
 }
 
+.control-btn.enable-audio {
+  background: #28a745;
+}
+
+.control-btn.enable-audio:hover {
+  background: #218838;
+}
+
 /* Modal */
 .modal {
   position: fixed;
