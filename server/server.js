@@ -151,6 +151,12 @@ io.on('connection', (socket) => {
       });
       
       console.log(`Call ended by ${socket.username} in room ${socket.roomId}`);
+    } else {
+      // Even if no active call, reset user's call status
+      if (room && room.users.has(socket.id)) {
+        room.users.get(socket.id).isInCall = false;
+        console.log(`Reset call status for ${socket.username}`);
+      }
     }
   });
 
@@ -182,6 +188,18 @@ io.on('connection', (socket) => {
       });
       
       console.log(`Call rejected by ${socket.username}`);
+    }
+  });
+
+  // Get room info
+  socket.on('get-room-info', () => {
+    const room = rooms.get(socket.roomId);
+    if (room) {
+      socket.emit('room-info', {
+        users: Array.from(room.users.values()),
+        messages: room.messages.slice(-50),
+        activeCall: room.activeCall
+      });
     }
   });
 

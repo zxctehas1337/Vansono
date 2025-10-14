@@ -313,6 +313,9 @@ async function startCall(callType) {
       return;
     }
     
+    console.log('Starting call, setting isInCall to true');
+    isInCall = true;
+    
     // Get user media with improved constraints
     const constraints = {
       audio: true,
@@ -325,6 +328,7 @@ async function startCall(callType) {
     
     try {
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Media stream obtained:', localStream.getTracks().map(t => t.kind));
     } catch (error) {
       console.warn('Failed to get media with constraints, trying basic constraints:', error);
       // Fallback to basic constraints
@@ -333,20 +337,28 @@ async function startCall(callType) {
         video: callType === 'video'
       };
       localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+      console.log('Media stream obtained with basic constraints:', localStream.getTracks().map(t => t.kind));
     }
     
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
     
-    // Add local stream
+    // Add local stream tracks
     localStream.getTracks().forEach(track => {
+      console.log('Adding track:', track.kind, track.enabled);
       peerConnection.addTrack(track, localStream);
     });
     
     // Handle remote stream
     peerConnection.ontrack = (event) => {
+      console.log('Received remote track:', event.track.kind);
       remoteStream = event.streams[0];
       elements.remoteVideo.srcObject = remoteStream;
+      
+      // Ensure audio is not muted for remote stream
+      if (event.track.kind === 'audio') {
+        console.log('Audio track received and enabled');
+      }
     };
     
     // Handle ICE candidates
@@ -426,6 +438,15 @@ async function startCall(callType) {
 }
 
 function handleIncomingCall(data) {
+  console.log('Incoming call received, current isInCall state:', isInCall);
+  
+  // If already in call, reject automatically
+  if (isInCall) {
+    console.log('Already in call, rejecting incoming call');
+    socket.emit('call-rejected', { target: data.caller });
+    return;
+  }
+  
   incomingCallData = data;
   elements.incomingCallerName.textContent = data.callerName;
   elements.incomingCallType.textContent = data.callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
@@ -439,8 +460,13 @@ async function acceptCall() {
     // Check if already in a call
     if (isInCall) {
       showNotification('Вы уже в звонке', 'error');
+      elements.incomingCallModal.style.display = 'none';
+      incomingCallData = null;
       return;
     }
+    
+    console.log('Accepting call, setting isInCall to true');
+    isInCall = true;
     
     // Get user media with improved constraints
     const constraints = {
@@ -454,6 +480,7 @@ async function acceptCall() {
     
     try {
       localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      console.log('Media stream obtained:', localStream.getTracks().map(t => t.kind));
     } catch (error) {
       console.warn('Failed to get media with constraints, trying basic constraints:', error);
       // Fallback to basic constraints
@@ -462,20 +489,28 @@ async function acceptCall() {
         video: callType === 'video'
       };
       localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+      console.log('Media stream obtained with basic constraints:', localStream.getTracks().map(t => t.kind));
     }
     
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
     
-    // Add local stream
+    // Add local stream tracks
     localStream.getTracks().forEach(track => {
+      console.log('Adding track:', track.kind, track.enabled);
       peerConnection.addTrack(track, localStream);
     });
     
     // Handle remote stream
     peerConnection.ontrack = (event) => {
+      console.log('Received remote track:', event.track.kind);
       remoteStream = event.streams[0];
       elements.remoteVideo.srcObject = remoteStream;
+      
+      // Ensure audio is not muted for remote stream
+      if (event.track.kind === 'audio') {
+        console.log('Audio track received and enabled');
+      }
     };
     
     // Handle ICE candidates
@@ -576,15 +611,22 @@ async function handleOffer(data) {
     // Create peer connection
     peerConnection = new RTCPeerConnection(rtcConfig);
     
-    // Add local stream
+    // Add local stream tracks
     localStream.getTracks().forEach(track => {
+      console.log('Adding track:', track.kind, track.enabled);
       peerConnection.addTrack(track, localStream);
     });
     
     // Handle remote stream
     peerConnection.ontrack = (event) => {
+      console.log('Received remote track:', event.track.kind);
       remoteStream = event.streams[0];
       elements.remoteVideo.srcObject = remoteStream;
+      
+      // Ensure audio is not muted for remote stream
+      if (event.track.kind === 'audio') {
+        console.log('Audio track received and enabled');
+      }
     };
     
     // Handle ICE candidates
@@ -634,6 +676,7 @@ async function handleOffer(data) {
     
     // Show call interface
     const callType = data.offer.sdp.includes('m=video') ? 'video' : 'audio';
+    console.log('Detected call type from offer:', callType);
     showCallInterface(callType);
     
     // Create answer
@@ -704,13 +747,16 @@ function handleCallEnded(data) {
 }
 
 function showCallInterface(callType) {
-  isInCall = true;
+  // Don't set isInCall here as it should already be set by caller
   elements.chatInterface.style.display = 'none';
   elements.callInterface.style.display = 'flex';
   
   // Set up local video
   if (localStream) {
     elements.localVideo.srcObject = localStream;
+    console.log('Local video set up with stream');
+  } else {
+    console.warn('No local stream available for video setup');
   }
   
   // Update call status
@@ -721,15 +767,18 @@ function showCallInterface(callType) {
   if (callType === 'video') {
     elements.remoteVideo.style.display = 'block';
     elements.localVideo.style.display = 'block';
+    console.log('Video call interface shown');
   } else {
     elements.remoteVideo.style.display = 'none';
     elements.localVideo.style.display = 'none';
+    console.log('Audio call interface shown');
   }
 }
 
 function endCall() {
-  if (!isInCall) return; // Prevent multiple calls
+  console.log('Ending call, current isInCall state:', isInCall);
   
+  // Always reset state, even if not in call
   isInCall = false;
   
   // Clear timeout
@@ -768,6 +817,8 @@ function endCall() {
   
   // Notify server
   socket.emit('end-call');
+  
+  console.log('Call ended, isInCall reset to:', isInCall);
 }
 
 function toggleMute() {
