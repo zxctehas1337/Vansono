@@ -1,94 +1,168 @@
-<!-- index.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vansono Messenger</title>
+    <title>Vansono - Современный мессенджер</title>
     <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-    <div id="app">
-        <!-- Auth Container -->
-        <div id="auth-container">
-            <div class="form-container">
-                <h1>Vansono</h1>
-                
-                <!-- Login Form -->
-                <div id="login-form">
-                    <input type="email" id="login-email" placeholder="Email" required>
-                    <input type="password" id="login-password" placeholder="Password" required>
-                    <button id="login-btn">Login</button>
+    <div class="app-container">
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="welcome-screen">
+            <div class="welcome-content">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <h1>Vansono</h1>
+                    <p>Современный мессенджер с качественными звонками</p>
                 </div>
                 
-                <!-- Register Form -->
-                <div id="register-form" class="hidden">
-                    <input type="email" id="reg-email" placeholder="Email" required>
-                    <input type="password" id="reg-password" placeholder="Password" required>
-                    <button id="reg-send-code">Send Code</button>
+                <div class="room-setup">
+                    <div class="input-group">
+                        <input type="text" id="username-input" placeholder="Введите ваше имя" maxlength="20">
+                        <input type="text" id="room-id-input" placeholder="ID комнаты (оставьте пустым для создания новой)">
+                    </div>
+                    
+                    <button id="join-room-btn" class="primary-btn">
+                        <i class="fas fa-sign-in-alt"></i>
+                        Присоединиться к комнате
+                    </button>
+                    
+                    <div class="room-info">
+                        <p>Поделитесь ссылкой с друзьями для общения</p>
+                        <div class="share-link" id="share-link" style="display: none;">
+                            <input type="text" id="room-link" readonly>
+                            <button id="copy-link-btn">
+                                <i class="fas fa-copy"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                
-                <!-- Verify Form -->
-                <div id="verify-form" class="hidden">
-                    <input type="text" id="verify-code" placeholder="Код подтверждения" required>
-                    <input type="password" id="verify-password" placeholder="Password" required>
-                    <input type="text" id="display-name" placeholder="Display Name">
-                    <button id="verify-btn">Verify</button>
-                </div>
-                
-                <p id="toggle-auth">Нет аккаунта? Зарегистрироваться</p>
-                <p id="toggle-to-login" class="hidden">Уже есть аккаунт? Войти</p>
-                <p id="error-msg" class="error hidden"></p>
+            </div>
+            
+            <div class="background-animation">
+                <div class="pulse-circle"></div>
+                <div class="pulse-circle delay-1"></div>
+                <div class="pulse-circle delay-2"></div>
             </div>
         </div>
-        
-        <!-- Main App -->
-        <div id="main-app" class="hidden">
-            <header>
-                <h1>Chats</h1>
-                <input type="text" id="search-users" placeholder="Search users...">
-                <button id="logout-btn">Logout</button>
-            </header>
-            <div id="user-list">
-                <p>Enter a query to search for users.</p>
-            </div>
-        </div>
-        
-        <!-- Call Modal -->
-        <div id="call-modal" class="modal hidden">
-            <div class="modal-content">
-                <h2>Incoming Call</h2>
-                <p>From: <span id="caller-name"></span></p>
-                <button id="accept-call" class="btn green">Accept</button>
-                <button id="reject-call" class="btn red">Reject</button>
-            </div>
-        </div>
-        
-        <!-- Message Modal (Placeholder) -->
-        <div id="message-modal" class="modal hidden">
-            <div class="modal-content">
-                <h2>Chat with <span id="chat-user-name"></span></h2>
-                <div id="chat-messages" class="chat-messages"></div>
-                <input type="text" id="message-input" placeholder="Enter message...">
-                <button id="send-message">Send</button>
-                <p class="note">Messages are not implemented on the server. This is a placeholder.</p>
-            </div>
-        </div>
-        
-        <!-- Local Video -->
-        <video id="local-video" autoplay muted class="hidden"></video>
-        <video id="remote-video" autoplay class="hidden"></video>
 
-        <!-- Call Controls -->
-        <div id="call-controls" class="call-controls hidden">
-            <button id="btn-toggle-video" class="call-btn gray" title="Video"></button>
-            <button id="btn-toggle-audio" class="call-btn gray" title="Microphone"></button>
-            <button id="btn-switch-camera" class="call-btn gray" title="Camera"></button>
-            <button id="btn-end-call" class="call-btn red" title="End Call"></button>
+        <!-- Chat Interface -->
+        <div id="chat-interface" class="chat-interface" style="display: none;">
+            <div class="chat-header">
+                <div class="room-info-header">
+                    <h2 id="room-name">Комната</h2>
+                    <span class="room-id" id="current-room-id"></span>
+                </div>
+                <div class="header-actions">
+                    <button id="share-room-btn" class="icon-btn" title="Поделиться комнатой">
+                        <i class="fas fa-share-alt"></i>
+                    </button>
+                    <button id="leave-room-btn" class="icon-btn" title="Покинуть комнату">
+                        <i class="fas fa-sign-out-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="chat-main">
+                <div class="users-panel">
+                    <h3>Участники</h3>
+                    <div id="users-list" class="users-list">
+                        <!-- Users will be populated here -->
+                    </div>
+                </div>
+
+                <div class="chat-panel">
+                    <div class="messages-container" id="messages-container">
+                        <!-- Messages will be populated here -->
+                    </div>
+                    
+                    <div class="message-input-container">
+                        <div class="message-input-wrapper">
+                            <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
+                            <button id="send-message-btn" class="send-btn">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="call-controls">
+                <button id="voice-call-btn" class="call-btn voice-call" title="Голосовой звонок">
+                    <i class="fas fa-phone"></i>
+                </button>
+                <button id="video-call-btn" class="call-btn video-call" title="Видеозвонок">
+                    <i class="fas fa-video"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Call Interface -->
+        <div id="call-interface" class="call-interface" style="display: none;">
+            <div class="call-header">
+                <div class="call-info">
+                    <h3 id="call-status">Звонок...</h3>
+                    <p id="call-participant"></p>
+                </div>
+                <button id="end-call-btn" class="end-call-btn">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+
+            <div class="video-container">
+                <video id="remote-video" autoplay playsinline></video>
+                <video id="local-video" autoplay playsinline muted></video>
+            </div>
+
+            <div class="call-controls-panel">
+                <button id="mute-btn" class="control-btn" title="Выключить микрофон">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="video-btn" class="control-btn" title="Выключить камеру">
+                    <i class="fas fa-video"></i>
+                </button>
+                <button id="hangup-btn" class="control-btn hangup" title="Завершить звонок">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Incoming Call Modal -->
+        <div id="incoming-call-modal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="call-info">
+                    <h3>Входящий звонок</h3>
+                    <p id="incoming-caller-name"></p>
+                    <p id="incoming-call-type"></p>
+                </div>
+                <div class="modal-actions">
+                    <button id="accept-call-btn" class="accept-btn">
+                        <i class="fas fa-phone"></i>
+                        Принять
+                    </button>
+                    <button id="reject-call-btn" class="reject-btn">
+                        <i class="fas fa-phone-slash"></i>
+                        Отклонить
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification -->
+        <div id="notification" class="notification" style="display: none;">
+            <div class="notification-content">
+                <i class="fas fa-info-circle"></i>
+                <span id="notification-text"></span>
+            </div>
         </div>
     </div>
-    
-    <script src="https://vansono.onrender.com/socket.io/socket.io.js"></script>
+
+    <script src="/socket.io/socket.io.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

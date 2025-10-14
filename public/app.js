@@ -1,571 +1,590 @@
-// app.js
-const API_BASE = 'https://vansono.onrender.com';
-const SOCKET_URL = 'https://vansono.onrender.com';
-
-let token = localStorage.getItem('token');
+// Global variables
 let socket;
-let currentUser = {};
-let pc; // WebRTC PeerConnection
+let currentRoomId;
+let currentUsername;
 let localStream;
-let contacts = new Set(); // To track added contacts
-let activeCall = {
-    targetUserId: null,
-    fromUserId: null,
-    callType: 'video',
-    pendingOffer: null
+let remoteStream;
+let peerConnection;
+let isInCall = false;
+let isMuted = false;
+let isVideoOff = false;
+let incomingCallData = null;
+
+// WebRTC configuration
+const rtcConfig = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' }
+  ]
 };
 
-// DOM Elements
-const authContainer = document.getElementById('auth-container');
-const mainApp = document.getElementById('main-app');
-const loginForm = document.getElementById('login-form');
-const registerForm = document.getElementById('register-form');
-const verifyForm = document.getElementById('verify-form');
-const toggleAuth = document.getElementById('toggle-auth');
-const toggleToLogin = document.getElementById('toggle-to-login');
-const errorMsg = document.getElementById('error-msg');
-const searchInput = document.getElementById('search-users');
-const userList = document.getElementById('user-list');
-const logoutBtn = document.getElementById('logout-btn');
-const callModal = document.getElementById('call-modal');
-const messageModal = document.getElementById('message-modal');
-const localVideo = document.getElementById('local-video');
-const remoteVideo = document.getElementById('remote-video');
+// DOM elements
+const elements = {
+  welcomeScreen: document.getElementById('welcome-screen'),
+  chatInterface: document.getElementById('chat-interface'),
+  callInterface: document.getElementById('call-interface'),
+  incomingCallModal: document.getElementById('incoming-call-modal'),
+  notification: document.getElementById('notification'),
+  
+  usernameInput: document.getElementById('username-input'),
+  roomIdInput: document.getElementById('room-id-input'),
+  joinRoomBtn: document.getElementById('join-room-btn'),
+  shareLink: document.getElementById('share-link'),
+  roomLink: document.getElementById('room-link'),
+  copyLinkBtn: document.getElementById('copy-link-btn'),
+  
+  roomName: document.getElementById('room-name'),
+  currentRoomId: document.getElementById('current-room-id'),
+  shareRoomBtn: document.getElementById('share-room-btn'),
+  leaveRoomBtn: document.getElementById('leave-room-btn'),
+  
+  usersList: document.getElementById('users-list'),
+  messagesContainer: document.getElementById('messages-container'),
+  messageInput: document.getElementById('message-input'),
+  sendMessageBtn: document.getElementById('send-message-btn'),
+  
+  voiceCallBtn: document.getElementById('voice-call-btn'),
+  videoCallBtn: document.getElementById('video-call-btn'),
+  
+  callStatus: document.getElementById('call-status'),
+  callParticipant: document.getElementById('call-participant'),
+  endCallBtn: document.getElementById('end-call-btn'),
+  remoteVideo: document.getElementById('remote-video'),
+  localVideo: document.getElementById('local-video'),
+  muteBtn: document.getElementById('mute-btn'),
+  videoBtn: document.getElementById('video-btn'),
+  hangupBtn: document.getElementById('hangup-btn'),
+  
+  incomingCallerName: document.getElementById('incoming-caller-name'),
+  incomingCallType: document.getElementById('incoming-call-type'),
+  acceptCallBtn: document.getElementById('accept-call-btn'),
+  rejectCallBtn: document.getElementById('reject-call-btn'),
+  
+  notificationText: document.getElementById('notification-text')
+};
 
-// Utility Functions
-function showError(msg) {
-    errorMsg.textContent = msg;
-    errorMsg.classList.remove('hidden');
+// Initialize the application
+document.addEventListener('DOMContentLoaded', () => {
+  initializeSocket();
+  setupEventListeners();
+  generateRandomRoomId();
+});
+
+// Socket.IO initialization
+function initializeSocket() {
+  socket = io();
+  
+  socket.on('connect', () => {
+    console.log('Connected to server');
+    showNotification('Подключено к серверу', 'success');
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    showNotification('Соединение потеряно', 'error');
+  });
+  
+  socket.on('room-info', (data) => {
+    updateUsersList(data.users);
+    displayMessages(data.messages);
+  });
+  
+  socket.on('user-joined', (data) => {
+    showNotification(`${data.username} присоединился к комнате`, 'info');
+    updateUsersList();
+  });
+  
+  socket.on('user-left', (data) => {
+    showNotification(`${data.username} покинул комнату`, 'info');
+    updateUsersList();
+  });
+  
+  socket.on('chat-message', (message) => {
+    displayMessage(message);
+  });
+  
+  // WebRTC signaling events
+  socket.on('offer', handleOffer);
+  socket.on('answer', handleAnswer);
+  socket.on('ice-candidate', handleIceCandidate);
+  
+  // Call events
+  socket.on('call-started', handleIncomingCall);
+  socket.on('call-ended', handleCallEnded);
+  socket.on('call-accepted', handleCallAccepted);
+  socket.on('call-rejected', handleCallRejected);
 }
 
-function hideError() {
-    errorMsg.classList.add('hidden');
+// Event listeners setup
+function setupEventListeners() {
+  // Welcome screen
+  elements.joinRoomBtn.addEventListener('click', joinRoom);
+  elements.copyLinkBtn.addEventListener('click', copyRoomLink);
+  elements.usernameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') joinRoom();
+  });
+  elements.roomIdInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') joinRoom();
+  });
+  
+  // Chat interface
+  elements.shareRoomBtn.addEventListener('click', showShareLink);
+  elements.leaveRoomBtn.addEventListener('click', leaveRoom);
+  elements.sendMessageBtn.addEventListener('click', sendMessage);
+  elements.messageInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') sendMessage();
+  });
+  
+  // Call buttons
+  elements.voiceCallBtn.addEventListener('click', () => startCall('audio'));
+  elements.videoCallBtn.addEventListener('click', () => startCall('video'));
+  
+  // Call interface
+  elements.endCallBtn.addEventListener('click', endCall);
+  elements.muteBtn.addEventListener('click', toggleMute);
+  elements.videoBtn.addEventListener('click', toggleVideo);
+  elements.hangupBtn.addEventListener('click', endCall);
+  
+  // Incoming call modal
+  elements.acceptCallBtn.addEventListener('click', acceptCall);
+  elements.rejectCallBtn.addEventListener('click', rejectCall);
 }
 
-function showSection(show, hide) {
-    show.classList.remove('hidden');
-    hide.classList.add('hidden');
+// Generate random room ID
+function generateRandomRoomId() {
+  const roomId = Math.random().toString(36).substring(2, 15);
+  elements.roomIdInput.value = roomId;
 }
 
-function apiCall(endpoint, options = {}) {
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers,
+// Join room functionality
+async function joinRoom() {
+  const username = elements.usernameInput.value.trim();
+  const roomId = elements.roomIdInput.value.trim();
+  
+  if (!username) {
+    showNotification('Введите ваше имя', 'error');
+    return;
+  }
+  
+  if (!roomId) {
+    generateRandomRoomId();
+    return;
+  }
+  
+  currentUsername = username;
+  currentRoomId = roomId;
+  
+  socket.emit('join-room', roomId, username);
+  
+  // Show chat interface
+  elements.welcomeScreen.style.display = 'none';
+  elements.chatInterface.style.display = 'flex';
+  
+  // Update room info
+  elements.roomName.textContent = `Комната ${roomId}`;
+  elements.currentRoomId.textContent = roomId;
+  
+  showNotification(`Присоединились к комнате ${roomId}`, 'success');
+}
+
+// Leave room functionality
+function leaveRoom() {
+  if (isInCall) {
+    endCall();
+  }
+  
+  socket.disconnect();
+  socket.connect();
+  
+  elements.chatInterface.style.display = 'none';
+  elements.welcomeScreen.style.display = 'flex';
+  
+  // Clear data
+  currentRoomId = null;
+  currentUsername = null;
+  elements.messagesContainer.innerHTML = '';
+  elements.usersList.innerHTML = '';
+  
+  showNotification('Покинули комнату', 'info');
+}
+
+// Share room link
+function showShareLink() {
+  const roomLink = `${window.location.origin}?room=${currentRoomId}`;
+  elements.roomLink.value = roomLink;
+  elements.shareLink.style.display = 'flex';
+}
+
+function copyRoomLink() {
+  elements.roomLink.select();
+  document.execCommand('copy');
+  showNotification('Ссылка скопирована в буфер обмена', 'success');
+}
+
+// Chat functionality
+function sendMessage() {
+  const message = elements.messageInput.value.trim();
+  if (!message) return;
+  
+  socket.emit('chat-message', { message });
+  elements.messageInput.value = '';
+}
+
+function displayMessage(message) {
+  const messageElement = document.createElement('div');
+  messageElement.className = `message ${message.username === currentUsername ? 'own' : 'other'}`;
+  
+  const time = new Date(message.timestamp).toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  
+  messageElement.innerHTML = `
+    <div class="message-header">
+      <span class="username">${message.username}</span>
+      <span class="timestamp">${time}</span>
+    </div>
+    <div class="message-content">${escapeHtml(message.message)}</div>
+  `;
+  
+  elements.messagesContainer.appendChild(messageElement);
+  elements.messagesContainer.scrollTop = elements.messagesContainer.scrollHeight;
+}
+
+function displayMessages(messages) {
+  elements.messagesContainer.innerHTML = '';
+  messages.forEach(message => displayMessage(message));
+}
+
+function updateUsersList(users) {
+  if (!users) {
+    // Request updated users list
+    socket.emit('get-room-info');
+    return;
+  }
+  
+  elements.usersList.innerHTML = '';
+  users.forEach(user => {
+    const userElement = document.createElement('div');
+    userElement.className = `user-item ${user.isInCall ? 'in-call' : ''}`;
+    userElement.innerHTML = `
+      <div class="user-avatar">
+        <i class="fas fa-user"></i>
+      </div>
+      <div class="user-info">
+        <span class="user-name">${user.username}</span>
+        <span class="user-status">${user.isInCall ? 'В звонке' : 'Онлайн'}</span>
+      </div>
+    `;
+    elements.usersList.appendChild(userElement);
+  });
+}
+
+// WebRTC functionality
+async function startCall(callType) {
+  try {
+    // Get user media
+    const constraints = {
+      audio: true,
+      video: callType === 'video'
     };
-    if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-    }
-    return fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers,
-    }).then(res => {
-        if (!res.ok) {
-            throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        }
-        return res.json();
+    
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // Create peer connection
+    peerConnection = new RTCPeerConnection(rtcConfig);
+    
+    // Add local stream
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
     });
-}
-
-// Auth Functions
-async function handleLogin() {
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    if (!email || !password) return showError('Заполните все поля');
-
-    try {
-        const data = await apiCall('/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
+    
+    // Handle remote stream
+    peerConnection.ontrack = (event) => {
+      remoteStream = event.streams[0];
+      elements.remoteVideo.srcObject = remoteStream;
+    };
+    
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('ice-candidate', {
+          target: getOtherUserId(),
+          candidate: event.candidate
         });
-        localStorage.setItem('token', data.token);
-        token = data.token;
-        currentUser = data.user;
-        initApp();
-    } catch (err) {
-        showError('Ошибка входа: ' + err.message);
-    }
+      }
+    };
+    
+    // Create offer
+    const offer = await peerConnection.createOffer();
+    await peerConnection.setLocalDescription(offer);
+    
+    // Send offer
+    socket.emit('offer', {
+      target: getOtherUserId(),
+      offer: offer
+    });
+    
+    // Show call interface
+    showCallInterface(callType);
+    
+    // Notify server about call start
+    socket.emit('start-call', { callType });
+    
+  } catch (error) {
+    console.error('Error starting call:', error);
+    showNotification('Ошибка при запуске звонка', 'error');
+  }
 }
 
-async function handleRegisterSendCode() {
-    const email = document.getElementById('reg-email').value;
-    const password = document.getElementById('reg-password').value;
-    if (!email || !password) return showError('Заполните все поля');
+function handleIncomingCall(data) {
+  incomingCallData = data;
+  elements.incomingCallerName.textContent = data.callerName;
+  elements.incomingCallType.textContent = data.callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
+  elements.incomingCallModal.style.display = 'flex';
+}
 
-    try {
-        await apiCall('/auth/register', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
+async function acceptCall() {
+  try {
+    const callType = incomingCallData.callType;
+    
+    // Get user media
+    const constraints = {
+      audio: true,
+      video: callType === 'video'
+    };
+    
+    localStream = await navigator.mediaDevices.getUserMedia(constraints);
+    
+    // Create peer connection
+    peerConnection = new RTCPeerConnection(rtcConfig);
+    
+    // Add local stream
+    localStream.getTracks().forEach(track => {
+      peerConnection.addTrack(track, localStream);
+    });
+    
+    // Handle remote stream
+    peerConnection.ontrack = (event) => {
+      remoteStream = event.streams[0];
+      elements.remoteVideo.srcObject = remoteStream;
+    };
+    
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('ice-candidate', {
+          target: incomingCallData.caller,
+          candidate: event.candidate
         });
-        showSection(verifyForm, registerForm);
-        toggleToLogin.classList.remove('hidden');
-        hideError();
-    } catch (err) {
-        showError('Ошибка регистрации: ' + err.message);
-    }
+      }
+    };
+    
+    // Accept call
+    socket.emit('call-accepted', { target: incomingCallData.caller });
+    
+    // Show call interface
+    showCallInterface(callType);
+    
+    // Hide incoming call modal
+    elements.incomingCallModal.style.display = 'none';
+    
+  } catch (error) {
+    console.error('Error accepting call:', error);
+    showNotification('Ошибка при принятии звонка', 'error');
+  }
 }
 
-async function handleVerify() {
-    const email = document.getElementById('reg-email').value; // Reuse from reg
-    const code = document.getElementById('verify-code').value;
-    const password = document.getElementById('verify-password').value;
-    const displayName = document.getElementById('display-name').value || email.split('@')[0];
-    if (!email || !code || !password) return showError('Заполните все поля');
+function rejectCall() {
+  socket.emit('call-rejected', { target: incomingCallData.caller });
+  elements.incomingCallModal.style.display = 'none';
+  incomingCallData = null;
+}
 
-    try {
-        const data = await apiCall('/auth/verify', {
-            method: 'POST',
-            body: JSON.stringify({ email, code, password, displayName }),
+async function handleOffer(data) {
+  try {
+    // Create peer connection
+    peerConnection = new RTCPeerConnection(rtcConfig);
+    
+    // Handle remote stream
+    peerConnection.ontrack = (event) => {
+      remoteStream = event.streams[0];
+      elements.remoteVideo.srcObject = remoteStream;
+    };
+    
+    // Handle ICE candidates
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate) {
+        socket.emit('ice-candidate', {
+          target: data.sender,
+          candidate: event.candidate
         });
-        localStorage.setItem('token', data.token);
-        token = data.token;
-        currentUser = data.user;
-        initApp();
-    } catch (err) {
-        showError('Ошибка подтверждения: ' + err.message);
+      }
+    };
+    
+    // Set remote description
+    await peerConnection.setRemoteDescription(data.offer);
+    
+    // Create answer
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    
+    // Send answer
+    socket.emit('answer', {
+      target: data.sender,
+      answer: answer
+    });
+    
+  } catch (error) {
+    console.error('Error handling offer:', error);
+  }
+}
+
+async function handleAnswer(data) {
+  try {
+    await peerConnection.setRemoteDescription(data.answer);
+  } catch (error) {
+    console.error('Error handling answer:', error);
+  }
+}
+
+async function handleIceCandidate(data) {
+  try {
+    if (peerConnection) {
+      await peerConnection.addIceCandidate(data.candidate);
     }
+  } catch (error) {
+    console.error('Error handling ICE candidate:', error);
+  }
 }
 
-function toggleAuthMode() {
-    if (loginForm.classList.contains('hidden')) {
-        showSection(loginForm, registerForm);
-        toggleAuth.textContent = 'Нет аккаунта? Зарегистрироваться';
-        toggleToLogin.classList.add('hidden');
-    } else {
-        showSection(registerForm, loginForm);
-        toggleAuth.textContent = 'Уже есть аккаунт? Войти';
-        toggleToLogin.classList.add('hidden');
-    }
-    hideError();
+function handleCallAccepted(data) {
+  elements.callStatus.textContent = 'Подключено';
+  showNotification('Звонок принят', 'success');
 }
 
-function toggleToLoginMode() {
-    showSection(loginForm, verifyForm);
-    toggleAuth.textContent = 'Нет аккаунта? Зарегистрироваться';
-    toggleToLogin.classList.add('hidden');
-    hideError();
+function handleCallRejected(data) {
+  endCall();
+  showNotification('Звонок отклонен', 'info');
 }
 
-// App Init
-async function initApp() {
-    try {
-        const data = await apiCall('/users/me');
-        currentUser = data.user;
-        showSection(mainApp, authContainer);
-        initSocket();
-        loadContacts();
-        searchInput.addEventListener('input', handleSearch);
-        logoutBtn.addEventListener('click', logout);
-    } catch (err) {
-        console.error('Init error:', err);
-        logout();
-    }
+function handleCallEnded(data) {
+  endCall();
+  showNotification('Звонок завершен', 'info');
 }
 
-function logout() {
-    localStorage.removeItem('token');
-    token = null;
-    if (socket) socket.disconnect();
-    showSection(authContainer, mainApp);
-    document.getElementById('login-email').value = '';
-    document.getElementById('login-password').value = '';
-}
-
-// Socket and Calls
-function initSocket() {
-    let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 5;
-
-    socket = io(SOCKET_URL, {
-        auth: { token },
-        reconnection: true,
-        reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-        reconnectionDelay: 1000,
-    });
-
-    socket.on('connect', () => {
-        console.log('Socket connected');
-    });
-
-    socket.on('reconnect', (attempt) => {
-        console.log('Reconnected after', attempt, 'attempts');
-        reconnectAttempts = 0;
-    });
-
-    socket.on('reconnect_failed', () => {
-        alert('Не удалось подключиться к серверу');
-    });
-
-    // Contact status updates
-    socket.on('user:status', (data) => {
-        updateUserStatus(data.userId, data.status);
-    });
-
-    socket.on('call:incoming', async (data) => {
-        // Save who is calling and the offer to answer properly
-        activeCall.fromUserId = data.fromUserId;
-        activeCall.targetUserId = data.fromUserId; // for responses we target the caller
-        activeCall.callType = data.callType || 'video';
-        activeCall.pendingOffer = data.offer || null;
-        document.getElementById('caller-name').textContent = data.fromUserEmail;
-        callModal.classList.remove('hidden');
-    });
-
-    document.getElementById('accept-call').addEventListener('click', async () => {
-        callModal.classList.add('hidden');
-        await startCall(true); // Answer
-    });
-
-    document.getElementById('reject-call').addEventListener('click', () => {
-        callModal.classList.add('hidden');
-        if (activeCall.fromUserId) {
-            socket.emit('call:reject', { targetUserId: activeCall.fromUserId });
-        }
-    });
-
-    socket.on('call:answered', async (data) => {
-        await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
-        addIceCandidates();
-    });
-
-    socket.on('call:rejected', () => {
-        alert('Звонок отклонен');
-        endCall();
-    });
-
-    socket.on('call:ended', () => {
-        endCall();
-    });
-
-    socket.on('ice-candidate', async (data) => {
-        try {
-            if (!pc) return;
-            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
-        } catch (err) {
-            console.error('ICE add error:', err);
-        }
-    });
-}
-
-// Update UI user status badges (simple placeholder)
-function updateUserStatus(userId, status) {
-    // If users are rendered, mark status near action buttons
-    const buttons = document.querySelectorAll('.user-item');
-    buttons.forEach(item => {
-        const callBtn = item.querySelector('button.btn.green');
-        if (!callBtn) return;
-        const onclick = callBtn.getAttribute('onclick');
-        if (onclick && onclick.includes(`initiateCall(${userId})`)) {
-            let badge = item.querySelector('.status-badge');
-            if (!badge) {
-                badge = document.createElement('span');
-                badge.className = 'status-badge';
-                badge.style.marginLeft = '8px';
-                badge.style.fontSize = '12px';
-                item.querySelector('.user-name').appendChild(badge);
-            }
-            badge.textContent = status === 'online' ? '• online' : '• offline';
-            badge.style.color = status === 'online' ? '#10b981' : '#9ca3af';
-        }
-    });
-}
-
-async function initiateCall(targetUserId, callType = 'video') {
-    try {
-        activeCall.targetUserId = targetUserId;
-        activeCall.fromUserId = currentUser.id;
-        activeCall.callType = callType;
-
-        pc = new RTCPeerConnection({
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' }
-            ]
-        });
-
-        // Connection state handling
-        pc.onconnectionstatechange = () => {
-            console.log('Connection state:', pc.connectionState);
-            if (pc.connectionState === 'failed') {
-                alert('Ошибка соединения');
-                endCall();
-            }
-        };
-
-        localStream = await navigator.mediaDevices.getUserMedia({ video: callType === 'video', audio: true });
-        localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-        localVideo.srcObject = localStream;
-        localVideo.classList.remove('hidden');
-
-        pc.ontrack = (event) => {
-            // Avoid flicker: only set if changed
-            const incoming = event.streams[0];
-            if (remoteVideo.srcObject !== incoming) remoteVideo.srcObject = incoming;
-            remoteVideo.classList.remove('hidden');
-        };
-
-        pc.onicecandidate = (event) => {
-            if (event.candidate) {
-                socket.emit('ice-candidate', { targetUserId, candidate: event.candidate });
-            }
-        };
-
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        socket.emit('call:initiate', { targetUserId, offer, callType });
-        document.getElementById('call-controls').classList.remove('hidden');
-        document.getElementById('btn-toggle-video').classList.add('pulsing');
-    } catch (err) {
-        console.error('Call init error:', err);
-        alert('Ошибка доступа к камере/микрофону: ' + (err && err.message ? err.message : 'Unknown error'));
-    }
-}
-
-async function startCall(isAnswer = false) {
-    if (isAnswer) {
-        try {
-            pc = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' }
-                ]
-            });
-
-            pc.onconnectionstatechange = () => {
-                console.log('Connection state:', pc.connectionState);
-                if (pc.connectionState === 'failed') {
-                    alert('Ошибка соединения');
-                    endCall();
-                }
-            };
-
-            localStream = await navigator.mediaDevices.getUserMedia({ video: activeCall.callType === 'video', audio: true });
-            localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-            localVideo.srcObject = localStream;
-            localVideo.classList.remove('hidden');
-
-            pc.ontrack = (event) => {
-                remoteVideo.srcObject = event.streams[0];
-                remoteVideo.classList.remove('hidden');
-            };
-
-            pc.onicecandidate = (event) => {
-                if (event.candidate && activeCall.fromUserId) {
-                    socket.emit('ice-candidate', { targetUserId: activeCall.fromUserId, candidate: event.candidate });
-                }
-            };
-
-            // Apply caller's offer before creating answer
-            if (activeCall.pendingOffer) {
-                await pc.setRemoteDescription(new RTCSessionDescription(activeCall.pendingOffer));
-            }
-
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            if (activeCall.fromUserId) {
-                socket.emit('call:answer', { targetUserId: activeCall.fromUserId, answer });
-            }
-            document.getElementById('call-controls').classList.remove('hidden');
-            document.getElementById('btn-toggle-video').classList.add('pulsing');
-        } catch (err) {
-            console.error('Answer error:', err);
-            alert('Ошибка ответа на звонок: ' + (err && err.message ? err.message : 'Unknown error'));
-        }
-    }
-}
-
-function addIceCandidates() {
-    // Handle ICE after remote desc
+function showCallInterface(callType) {
+  isInCall = true;
+  elements.chatInterface.style.display = 'none';
+  elements.callInterface.style.display = 'flex';
+  
+  // Set up local video
+  if (localStream) {
+    elements.localVideo.srcObject = localStream;
+  }
+  
+  // Update call status
+  elements.callStatus.textContent = callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
+  elements.callParticipant.textContent = 'Подключение...';
+  
+  // Show/hide video elements based on call type
+  if (callType === 'video') {
+    elements.remoteVideo.style.display = 'block';
+    elements.localVideo.style.display = 'block';
+  } else {
+    elements.remoteVideo.style.display = 'none';
+    elements.localVideo.style.display = 'none';
+  }
 }
 
 function endCall() {
-    if (pc) pc.close();
-    if (localStream) localStream.getTracks().forEach(track => track.stop());
-    localVideo.srcObject = null;
-    remoteVideo.srcObject = null;
-    localVideo.classList.add('hidden');
-    remoteVideo.classList.add('hidden');
-    activeCall = { targetUserId: null, fromUserId: null, callType: 'video', pendingOffer: null };
-    const controls = document.getElementById('call-controls');
-    if (controls) controls.classList.add('hidden');
-    const pulseBtn = document.getElementById('btn-toggle-video');
-    if (pulseBtn) pulseBtn.classList.remove('pulsing');
+  isInCall = false;
+  
+  // Close peer connection
+  if (peerConnection) {
+    peerConnection.close();
+    peerConnection = null;
+  }
+  
+  // Stop local stream
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+    localStream = null;
+  }
+  
+  // Clear video elements
+  elements.remoteVideo.srcObject = null;
+  elements.localVideo.srcObject = null;
+  
+  // Hide call interface
+  elements.callInterface.style.display = 'none';
+  elements.chatInterface.style.display = 'flex';
+  
+  // Notify server
+  socket.emit('end-call');
+  
+  showNotification('Звонок завершен', 'info');
 }
 
-// Media controls
+function toggleMute() {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      isMuted = !audioTrack.enabled;
+      
+      const icon = elements.muteBtn.querySelector('i');
+      icon.className = isMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
+      
+      elements.muteBtn.classList.toggle('active', isMuted);
+    }
+  }
+}
+
 function toggleVideo() {
-    if (localStream) {
-        const videoTrack = localStream.getVideoTracks()[0];
-        if (videoTrack) {
-            videoTrack.enabled = !videoTrack.enabled;
-        }
+  if (localStream) {
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      isVideoOff = !videoTrack.enabled;
+      
+      const icon = elements.videoBtn.querySelector('i');
+      icon.className = isVideoOff ? 'fas fa-video-slash' : 'fas fa-video';
+      
+      elements.videoBtn.classList.toggle('active', isVideoOff);
     }
+  }
 }
 
-function toggleAudio() {
-    if (localStream) {
-        const audioTrack = localStream.getAudioTracks()[0];
-        if (audioTrack) {
-            audioTrack.enabled = !audioTrack.enabled;
-        }
-    }
+function getOtherUserId() {
+  // This is a simplified implementation
+  // In a real app, you'd need to track other users properly
+  return 'other-user'; // Placeholder
 }
 
-async function switchCamera() {
-    try {
-        if (!localStream) return;
-        const constraints = { video: { facingMode: 'user' }, audio: true };
-        const currentVideoTrack = localStream.getVideoTracks()[0];
-        const currentFacing = currentVideoTrack && currentVideoTrack.getSettings().facingMode;
-        if (currentFacing === 'user') constraints.video.facingMode = { exact: 'environment' };
-
-        const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-        const newVideoTrack = newStream.getVideoTracks()[0];
-        if (pc && newVideoTrack) {
-            const senders = pc.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                await videoSender.replaceTrack(newVideoTrack);
-            }
-        }
-        // Stop old video track, keep audio
-        if (currentVideoTrack) currentVideoTrack.stop();
-        // Update localStream tracks and video element
-        localStream.removeTrack(currentVideoTrack);
-        localStream.addTrack(newVideoTrack);
-        localVideo.srcObject = localStream;
-    } catch (err) {
-        console.error('Switch camera error:', err);
-        alert('Не удалось переключить камеру');
-    }
+// Utility functions
+function showNotification(message, type = 'info') {
+  elements.notificationText.textContent = message;
+  elements.notification.className = `notification ${type}`;
+  elements.notification.style.display = 'flex';
+  
+  setTimeout(() => {
+    elements.notification.style.display = 'none';
+  }, 3000);
 }
 
-// Hook up UI buttons
-const controls = document.getElementById('call-controls');
-if (controls) {
-    const btnVideo = document.getElementById('btn-toggle-video');
-    const btnAudio = document.getElementById('btn-toggle-audio');
-    const btnSwitch = document.getElementById('btn-switch-camera');
-    const btnEnd = document.getElementById('btn-end-call');
-    if (btnVideo) btnVideo.onclick = toggleVideo;
-    if (btnAudio) btnAudio.onclick = toggleAudio;
-    if (btnSwitch) btnSwitch.onclick = switchCamera;
-    if (btnEnd) btnEnd.onclick = () => {
-        if (activeCall.targetUserId) {
-            socket.emit('call:end', { targetUserId: activeCall.targetUserId });
-        } else if (activeCall.fromUserId) {
-            socket.emit('call:end', { targetUserId: activeCall.fromUserId });
-        }
-        endCall();
-    };
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
 }
 
-// Users and Contacts
-async function loadContacts() {
-    try {
-        const data = await apiCall('/contacts');
-        data.contacts.forEach(c => contacts.add(c.id));
-    } catch (err) {
-        console.error('Load contacts error:', err);
-    }
-}
-
-async function handleSearch() {
-    const q = searchInput.value.trim();
-    if (q.length < 1) {
-        userList.innerHTML = '<p>Введите запрос для поиска пользователей.</p>';
-        return;
-    }
-    try {
-        const data = await apiCall(`/users/search?q=${encodeURIComponent(q)}`);
-        renderUserList(data.users);
-    } catch (err) {
-        console.error('Search error:', err);
-        userList.innerHTML = '<p>Ошибка поиска.</p>';
-    }
-}
-
-function renderUserList(users) {
-    userList.innerHTML = users.map(user => `
-        <div class="user-item">
-            <div class="user-info">
-                <div class="user-name">${user.display_name || user.email}</div>
-                <div class="user-email">${user.email}</div>
-            </div>
-            <div class="user-actions">
-                <button class="btn blue" onclick="openChat(${user.id}, '${user.display_name || user.email}')">Написать</button>
-                <button class="btn green" onclick="initiateCall(${user.id})">Позвонить</button>
-                ${!contacts.has(user.id) ? `<button class="btn" onclick="addContact(${user.id})">Добавить</button>` : ''}
-            </div>
-        </div>
-    `).join('');
-}
-
-async function addContact(contactId) {
-    try {
-        await apiCall('/contacts', {
-            method: 'POST',
-            body: JSON.stringify({ contactId }),
-        });
-        contacts.add(contactId);
-        handleSearch(); // Refresh list
-    } catch (err) {
-        alert('Ошибка добавления контакта');
-    }
-}
-
-function openChat(userId, userName) {
-    document.getElementById('chat-user-name').textContent = userName;
-    document.getElementById('chat-messages').innerHTML = '<p>Чат пуст.</p>';
-    messageModal.classList.remove('hidden');
-    document.getElementById('send-message').onclick = () => {
-        const msg = document.getElementById('message-input').value;
-        if (msg) {
-            document.getElementById('chat-messages').innerHTML += `<p><strong>Вы:</strong> ${msg}</p>`;
-            document.getElementById('message-input').value = '';
-            if (socket) {
-                socket.emit('chat:send', { targetUserId: userId, message: msg });
-            }
-        }
-    };
-}
-
-// Incoming chat messages
-if (typeof io !== 'undefined') {
-    // When socket initialized, this handler will be active
-    const ensureChatHandler = () => {
-        if (!socket || socket._chatHandlerSet) return;
-        socket.on('chat:message', (data) => {
-            const box = document.getElementById('chat-messages');
-            if (box) {
-                const time = new Date(data.timestamp).toLocaleTimeString();
-                box.innerHTML += `<p><strong>${data.fromUserId}:</strong> ${data.message} <span style="color:#999;font-size:12px;">${time}</span></p>`;
-            }
-        });
-        socket._chatHandlerSet = true;
-    };
-    // Hook into socket creation
-    const originalInitSocket = initSocket;
-    initSocket = function() {
-        originalInitSocket.apply(this, arguments);
-        ensureChatHandler();
-    };
-}
-
-// Event Listeners
-document.getElementById('login-btn').addEventListener('click', handleLogin);
-document.getElementById('reg-send-code').addEventListener('click', handleRegisterSendCode);
-document.getElementById('verify-btn').addEventListener('click', handleVerify);
-toggleAuth.addEventListener('click', toggleAuthMode);
-toggleToLogin.addEventListener('click', toggleToLoginMode);
-
-// Modals close
-[callModal, messageModal].forEach(modal => {
-    modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.classList.add('hidden');
-    });
+// Handle URL parameters
+window.addEventListener('load', () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const roomParam = urlParams.get('room');
+  if (roomParam) {
+    elements.roomIdInput.value = roomParam;
+  }
 });
-
-// Init
-if (token) {
-    initApp();
-} else {
-    showSection(authContainer, mainApp);
-}
