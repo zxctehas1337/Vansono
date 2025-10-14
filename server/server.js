@@ -367,6 +367,26 @@ io.on('connection', (socket) => {
     status: 'online'
   });
 
+  // Send current user's contacts statuses on connect
+  (async () => {
+    try {
+      const result = await pool.query(
+        `SELECT contact_id as id FROM contacts WHERE user_id = $1`,
+        [socket.userId]
+      );
+      const contactsList = result.rows || [];
+      contactsList.forEach(c => {
+        const isOnline = connectedUsers.has(c.id);
+        socket.emit('user:status', {
+          userId: c.id,
+          status: isOnline ? 'online' : 'offline'
+        });
+      });
+    } catch (e) {
+      console.error('Send contacts statuses error:', e);
+    }
+  })();
+
   // Handle call initiation
   socket.on('call:initiate', async (data) => {
     const { targetUserId, offer, callType } = data;
@@ -418,6 +438,17 @@ io.on('connection', (socket) => {
     const { targetUserId } = data;
     socket.to(`user:${targetUserId}`).emit('call:ended', {
       fromUserId: socket.userId
+    });
+  });
+
+  // Basic text messaging
+  socket.on('chat:send', (data) => {
+    const { targetUserId, message } = data;
+    if (!targetUserId || !message) return;
+    socket.to(`user:${targetUserId}`).emit('chat:message', {
+      fromUserId: socket.userId,
+      message,
+      timestamp: Date.now()
     });
   });
 

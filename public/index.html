@@ -1,0 +1,94 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vansono Messenger</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Auth Container -->
+        <div id="auth-container">
+            <div class="form-container">
+                <h1>Vansono</h1>
+                
+                <!-- Login Form -->
+                <div id="login-form">
+                    <input type="email" id="login-email" placeholder="Email" required>
+                    <input type="password" id="login-password" placeholder="Password" required>
+                    <button id="login-btn">Login</button>
+                </div>
+                
+                <!-- Register Form -->
+                <div id="register-form" class="hidden">
+                    <input type="email" id="reg-email" placeholder="Email" required>
+                    <input type="password" id="reg-password" placeholder="Password" required>
+                    <button id="reg-send-code">Send Code</button>
+                </div>
+                
+                <!-- Verify Form -->
+                <div id="verify-form" class="hidden">
+                    <input type="text" id="verify-code" placeholder="Код подтверждения" required>
+                    <input type="password" id="verify-password" placeholder="Password" required>
+                    <input type="text" id="display-name" placeholder="Display Name">
+                    <button id="verify-btn">Verify</button>
+                </div>
+                
+                <p id="toggle-auth">Нет аккаунта? Зарегистрироваться</p>
+                <p id="toggle-to-login" class="hidden">Уже есть аккаунт? Войти</p>
+                <p id="error-msg" class="error hidden"></p>
+            </div>
+        </div>
+        
+        <!-- Main App -->
+        <div id="main-app" class="hidden">
+            <header>
+                <h1>Chats</h1>
+                <input type="text" id="search-users" placeholder="Search users...">
+                <button id="logout-btn">Logout</button>
+            </header>
+            <div id="user-list">
+                <p>Enter a query to search for users.</p>
+            </div>
+        </div>
+        
+        <!-- Call Modal -->
+        <div id="call-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Incoming Call</h2>
+                <p>From: <span id="caller-name"></span></p>
+                <button id="accept-call" class="btn green">Accept</button>
+                <button id="reject-call" class="btn red">Reject</button>
+            </div>
+        </div>
+        
+        <!-- Message Modal (Placeholder) -->
+        <div id="message-modal" class="modal hidden">
+            <div class="modal-content">
+                <h2>Chat with <span id="chat-user-name"></span></h2>
+                <div id="chat-messages" class="chat-messages"></div>
+                <input type="text" id="message-input" placeholder="Enter message...">
+                <button id="send-message">Send</button>
+                <p class="note">Messages are not implemented on the server. This is a placeholder.</p>
+            </div>
+        </div>
+        
+        <!-- Local Video -->
+        <video id="local-video" autoplay muted class="hidden"></video>
+        <video id="remote-video" autoplay class="hidden"></video>
+
+        <!-- Call Controls -->
+        <div id="call-controls" class="call-controls hidden">
+            <button id="btn-toggle-video" class="call-btn gray" title="Video"></button>
+            <button id="btn-toggle-audio" class="call-btn gray" title="Microphone"></button>
+            <button id="btn-switch-camera" class="call-btn gray" title="Camera"></button>
+            <button id="btn-end-call" class="call-btn red" title="End Call"></button>
+        </div>
+    </div>
+    
+    <script src="https://vansono.onrender.com/socket.io/socket.io.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
