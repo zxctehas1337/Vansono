@@ -43,16 +43,6 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
 });
 
-// Redis connection
-const redisClient = redis.createClient({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT,
-  password: process.env.REDIS_PASSWORD || undefined,
-});
-
-redisClient.on('error', (err) => console.log('Redis Client Error', err));
-redisClient.connect();
-
 // Email transporter
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
@@ -149,7 +139,7 @@ app.post('/auth/register', async (req, res) => {
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     
     // Store code in Redis with 10 minute TTL
-    await redisClient.setEx(`verification:${email}`, 600, verificationCode);
+    await pool.query(`INSERT INTO verification_codes (email, code, expires_at) VALUES ($1, $2, $3)`, [email, verificationCode, new Date(Date.now() + 600000)]);
 
     // Send verification email
     await transporter.sendMail({
@@ -185,7 +175,7 @@ app.post('/auth/verify', async (req, res) => {
     }
 
     // Verify code from Redis
-    const storedCode = await redisClient.get(`verification:${email}`);
+    const storedCode = await pool.query(`SELECT code FROM verification_codes WHERE email = $1 AND expires_at > NOW()`, [email]);
     if (!storedCode || storedCode !== code) {
       return res.status(400).json({ error: 'Invalid or expired verification code' });
     }
@@ -209,7 +199,7 @@ app.post('/auth/verify', async (req, res) => {
     );
 
     // Delete verification code
-    await redisClient.del(`verification:${email}`);
+    await pool.query(`DELETE FROM verification_codes WHERE email = $1`, [email]);
 
     res.json({
       token,
@@ -454,7 +444,6 @@ async function startServer() {
     console.log(`🚀 Vansono server running on port ${PORT}`);
     console.log(`📧 Email service: ${process.env.EMAIL_USER ? 'Configured' : 'Not configured'}`);
     console.log(`🗄️  Database: ${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`);
-    console.log(`🔴 Redis: ${process.env.REDIS_HOST}:${process.env.REDIS_PORT}`);
   });
 }
 
