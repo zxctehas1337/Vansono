@@ -302,7 +302,7 @@ function displayMessage(message) {
       <span class="username">${message.username}</span>
       <span class="timestamp">${time}</span>
     </div>
-    <div class="message-content">${escapeHtml(message.message)}</div>
+    <div class="message-content">${linkify(message.message)}</div>
   `;
   
   elements.messagesContainer.appendChild(messageElement);
@@ -879,6 +879,25 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Convert URLs in plain text to safe clickable links
+function linkify(text) {
+  // First escape to prevent XSS
+  const safe = escapeHtml(text);
+  // Regexes: http(s) URLs and bare www.
+  const urlPattern = /\bhttps?:\/\/[\w.-]+(?:\:[0-9]+)?(?:\/[\w\-._~:/?#[\]@!$&'()*+,;=%]*)?/gi;
+  const wwwPattern = /(^|\s)(www\.[\w.-]+(?:\:[0-9]+)?(?:\/[\w\-._~:/?#[\]@!$&'()*+,;=%]*)?)/gi;
+
+  let html = safe.replace(urlPattern, (url) => {
+    const display = url;
+    return `<a href="${url}" target="_blank" rel="noopener noreferrer">${display}</a>`;
+  });
+  html = html.replace(wwwPattern, (match, leading, www) => {
+    const url = `http://${www}`;
+    return `${leading}<a href="${url}" target="_blank" rel="noopener noreferrer">${www}</a>`;
+  });
+  return html;
 }
 
 // Handle URL parameters
