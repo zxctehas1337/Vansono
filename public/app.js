@@ -361,6 +361,17 @@ async function createPeerConnection() {
     console.log('Received remote track:', event.track.kind);
     remoteStream = event.streams[0];
     elements.remoteVideo.srcObject = remoteStream;
+    // Ensure autoplay policies are satisfied for video element
+    elements.remoteVideo.muted = false;
+    elements.remoteVideo.playsInline = true;
+    elements.remoteVideo
+      .play()
+      .then(() => {
+        console.log('Remote video playing');
+      })
+      .catch((err) => {
+        console.warn('Autoplay blocked for remote video, will require user gesture', err);
+      });
     
     // Ensure audio is not muted for remote stream
     if (event.track.kind === 'audio') {
@@ -435,7 +446,6 @@ async function createPeerConnection() {
       
       switch (peerConnection.connectionState) {
         case 'connected':
-          elements.callStatus.textContent = 'Подключено';
           showNotification('Соединение установлено', 'success');
           // Clear timeout when connected
           if (callTimeout) {
@@ -444,7 +454,7 @@ async function createPeerConnection() {
           }
           break;
         case 'connecting':
-          elements.callStatus.textContent = 'Подключение...';
+          console.log('');
           break;
         case 'failed':
           console.log('Connection failed');
@@ -592,11 +602,7 @@ function rejectCall() {
 
 async function handleOffer(data) {
   try {
-    // Only handle offer if we're not already in a call
-    if (isInCall) {
-      console.log('Already in call, ignoring offer');
-      return;
-    }
+    // Accept the first valid offer even if isInCall flag is set due to UI state
     
     // Remember the peer who sent the offer
     currentPeerId = data.sender;
@@ -691,7 +697,6 @@ async function processPendingIceCandidates() {
 
 function handleCallAccepted(data) {
   if (isInCall) {
-    elements.callStatus.textContent = 'Подключено';
     elements.callParticipant.textContent = data.acceptorName || 'Участник';
     showNotification('Звонок принят', 'success');
     // Set peer id to acceptor if not set yet
@@ -737,13 +742,18 @@ function showCallInterface(callType) {
   if (localStream) {
     elements.localVideo.srcObject = localStream;
     console.log('Local video set up with stream');
+    // Try to play to satisfy autoplay
+    elements.localVideo.muted = true; // local should be muted
+    elements.localVideo.playsInline = true;
+    elements.localVideo.play().catch(() => {
+      // Some browsers require a gesture; UI already shows controls
+    });
   } else {
     console.warn('No local stream available for video setup');
   }
   
   // Update call status
   elements.callStatus.textContent = callType === 'video' ? 'Видеозвонок' : 'Голосовой звонок';
-  elements.callParticipant.textContent = 'Подключение...';
   
   // Show/hide video elements based on call type
   if (callType === 'video') {
