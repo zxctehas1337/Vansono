@@ -12,6 +12,7 @@ let incomingCallData = null;
 let otherUsers = [];
 let callTimeout = null;
 let pendingIceCandidates = [];
+let currentPeerId = null;
 
 // WebRTC configuration
 const rtcConfig = {
@@ -358,12 +359,14 @@ async function createPeerConnection() {
   // Handle ICE candidates
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
-      const target = incomingCallData ? incomingCallData.caller : (otherUsers.length > 0 ? otherUsers[0].id : null);
-      if (target) {
+      if (currentPeerId) {
         socket.emit('ice-candidate', {
-          target: target,
+          target: currentPeerId,
           candidate: event.candidate
         });
+      } else {
+        // Buffer candidates until we know the peer id
+        pendingIceCandidates.push(event.candidate);
       }
     }
   };
@@ -489,11 +492,13 @@ async function startCall(callType) {
     
     // Create and send offer
     try {
+      // Select the intended callee explicitly and remember it
+      currentPeerId = otherUsers[0].id;
       const offer = await peerConnection.createOffer();
       await peerConnection.setLocalDescription(offer);
       
       socket.emit('offer', {
-        target: otherUsers[0].id,
+        target: currentPeerId,
         offer: offer
       });
     } catch (error) {
@@ -513,6 +518,9 @@ async function startCall(callType) {
   } catch (error) {
     console.error('Error starting call:', error);
     showNotification('Ошибка при запуске звонка: ' + error.message, 'error');
+    // Reset call state on failure
+    isInCall = false;
+    currentPeerId = null;
   }
 }
 
@@ -588,6 +596,9 @@ async function acceptCall() {
   } catch (error) {
     console.error('Error accepting call:', error);
     showNotification('Ошибка при принятии звонка: ' + error.message, 'error');
+    // Reset call state on failure
+    isInCall = false;
+    currentPeerId = null;
   }
 }
 
@@ -605,6 +616,9 @@ async function handleOffer(data) {
       return;
     }
     
+    // Remember the peer who sent the offer
+    currentPeerId = data.sender;
+
     // Get user media for answering
     const constraints = {
       audio: true,
@@ -643,7 +657,7 @@ async function handleOffer(data) {
     
     // Send answer
     socket.emit('answer', {
-      target: data.sender,
+      target: currentPeerId,
       answer: answer
     });
     
@@ -655,6 +669,10 @@ async function handleOffer(data) {
 
 async function handleAnswer(data) {
   try {
+    // Ensure we target the correct peer
+    if (!currentPeerId) {
+      currentPeerId = data.sender;
+    }
     if (peerConnection && peerConnection.signalingState !== 'closed') {
       await peerConnection.setRemoteDescription(data.answer);
       console.log('Answer set successfully');
@@ -672,6 +690,11 @@ async function handleAnswer(data) {
 
 async function handleIceCandidate(data) {
   try {
+    // Ignore candidates from unrelated peers
+    if (currentPeerId && data.sender && data.sender !== currentPeerId) {
+      console.warn('Ignoring ICE candidate from non-target peer', data.sender);
+      return;
+    }
     if (peerConnection && peerConnection.signalingState !== 'closed' && peerConnection.connectionState !== 'closed') {
       await peerConnection.addIceCandidate(data.candidate);
       console.log('ICE candidate added successfully');
@@ -707,6 +730,17 @@ function handleCallAccepted(data) {
     elements.callStatus.textContent = 'Подключено';
     elements.callParticipant.textContent = data.acceptorName || 'Участник';
     showNotification('Звонок принят', 'success');
+    // Set peer id to acceptor if not set yet
+    if (!currentPeerId && data.acceptor) {
+      currentPeerId = data.acceptor;
+      // Flush any locally gathered candidates
+      if (pendingIceCandidates.length > 0) {
+        pendingIceCandidates.forEach(c => {
+          socket.emit('ice-candidate', { target: currentPeerId, candidate: c });
+        });
+        pendingIceCandidates = [];
+      }
+    }
   }
 }
 
@@ -789,6 +823,7 @@ function endCall() {
   
   // Clear pending ICE candidates
   pendingIceCandidates = [];
+  currentPeerId = null;
   
   // Hide call interface
   elements.callInterface.style.display = 'none';
