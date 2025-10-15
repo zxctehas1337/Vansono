@@ -123,17 +123,21 @@ button { cursor: pointer; border: none; }
 .icon-btn:hover { background: var(--elev-3); border-color: #384158; }
 .icon-btn:active { transform: translateY(1px); }
 
-/* Icons for specific buttons using Unicode */
+/* Icons for specific buttons using SVG background */
+.control-btn.call {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIxIDE1LjU0NkMxOS45ODggMTQuNTQgMTguNjUzIDEzLjggMTcuMTY1IDEzLjM0QzE2LjYyIDEzLjIyNSAxNi4wNDUgMTMuMjI1IDE1LjUgMTMuMzRDMTQuMDEyIDEzLjggMTIuNjc3IDE0LjU0IDExLjY2NSAxNS41NDZDMTAuNjUzIDE2LjU1MiA5LjMxOCAxNy4yOTIgNy44MyAxNy43NTJDNy4yODUgMTcuODY3IDYuNzEgMTcuODY3IDYuMTY1IDE3Ljc1MkM0LjY3NyAxNy4yOTIgMy4zNDIgMTYuNTUyIDIuMzMgMTUuNTQ2QzAuNDU1IDEzLjY3MSAwIDExLjE2MSAwIDguNUMwIDUuODM5IDAuNDU1IDMuMzI5IDIuMzMgMS40NTRDNC4yMDUgLTAuNDIxIDYuNzE1IC0wLjg3NiA5LjM3NiAtMC44NzZDMTIuMDM3IC0wLjg3NiAxNC41NDcgLTAuNDIxIDE2LjQyMiAxLjQ1NEMxOC4yOTcgMy4zMjkgMTguNzUyIDUuODM5IDE4Ljc1MiA4LjVDMTguNzUyIDkuNTQ1IDE4LjY0MiAxMC41NjggMTguNDI3IDExLjU2MEMxOC4yMTIgMTIuNTUyIDE3Ljg5MiAxMy41MDcgMTcuNDg1IDE0LjQyMEMxNy4wNzggMTUuMzMzIDE2LjU5IDE2LjIgMTYuMDM1IDE3LjAwNUwyMSAxNS41NDZaIiBmaWxsPSJjdXJyZW50Q29sb3IiLz4KPC9zdmc+");
+  background-size: 24px 24px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.control-btn.video {
+  background-image: url("data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTIxIDZWMThIM1Y2SDIxWk0yMSA0SDNDMS44OSA0IDEgNC45IDMgNlYxOEMzIDE5LjEgMy44OSAyMCA1IDIwSDIxQzIyLjEgMjAgMjMgMTkuMSAyMyAxOFY2QzIzIDQuOSAyMi4xIDQgMjEgNFoiIGZpbGw9ImN1cnJlbnRDb2xvciIvPjxwYXRoIGQ9Ik05IDlMMTUgMTJMOSAxNVY5WiIgZmlsbD0iY3VycmVudENvbG9yIi8+Cjwvc3ZnPgo=");
+  background-size: 24px 24px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
 .icon-btn.share::before {
   content: "\1F4E0"; /* Share icon */
-}
-.control-btn.call::before {
-  content: "\1F4DE"; /* Phone icon for call */
-  font-size: 20px;
-}
-.control-btn.video::before {
-  content: "\1F4FA"; /* Video camera icon */
-  font-size: 20px;
 }
 .accept-btn::before {
   content: "\1F4DE"; /* Phone icon for accept call */
@@ -407,24 +411,37 @@ button { cursor: pointer; border: none; }
 }
 .call-controls-panel { 
   display: flex; 
-  gap: 10px; 
-  padding: 12px; 
+  gap: 20px; /* Increased gap for maximalist spacing */
+  padding: 20px; /* Increased padding for bolder look */
+  justify-content: center; /* Center the buttons */
   border-top: 1px solid var(--border); 
-  background: rgba(20,26,35,0.6);
+  background: linear-gradient(180deg, rgba(20,26,35,0.8), rgba(20,26,35,0.4)); /* Enhanced gradient for maximalism */
   flex-shrink: 0; /* Prevent shrinking and overlap */
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.4); /* Added upward shadow for depth */
 }
 .control-btn { 
   display: inline-grid; 
   place-items: center; 
-  width: 42px; 
-  height: 42px; 
-  border-radius: 12px; 
-  background: var(--elev-2); 
+  width: 56px; /* Larger size for maximalist feel */
+  height: 56px; 
+  border-radius: 16px; /* Larger radius */
+  background: linear-gradient(135deg, var(--elev-2), var(--elev-3)); /* Gradient background */
   color: var(--text); 
-  border: 1px solid var(--border); 
+  border: 2px solid var(--border); /* Thicker border */
   font-size: 20px; /* For icons */
+  transition: all 0.2s ease; /* Smoother transitions */
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3); /* Enhanced shadow */
 }
-.control-btn.active { background: var(--elev-3); border-color: #384158; }
+.control-btn:hover { 
+  transform: scale(1.1); /* Scale on hover for interactivity */
+  box-shadow: 0 8px 24px rgba(74, 140, 255, 0.3); /* Glow on hover */
+  border-color: var(--accent);
+}
+.control-btn.active { 
+  background: linear-gradient(135deg, var(--accent), var(--accent-2)); 
+  border-color: var(--accent-2); 
+  color: white;
+}
 
 /* Modal */
 .modal { 
@@ -480,4 +497,6 @@ a:hover { text-decoration: underline; }
 @media (max-width: 920px) {
   .chat-main { grid-template-columns: 1fr; }
   .users-panel { display: none; }
+  .call-controls-panel { gap: 15px; padding: 15px; }
+  .control-btn { width: 48px; height: 48px; border-radius: 14px; }
 }
