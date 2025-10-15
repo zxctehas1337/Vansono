@@ -18,25 +18,9 @@ let currentPeerId = null;
 const rtcConfig = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
-    { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:stun.ekiga.net' },
-    { urls: 'stun:stun.ideasip.com' },
-    { urls: 'stun:stun.schlund.de' },
-    { urls: 'stun:stun.stunprotocol.org:3478' },
-    { urls: 'stun:stun.voiparound.com' },
-    { urls: 'stun:stun.voipbuster.com' },
-    { urls: 'stun:stun.voipstunt.com' },
-    { urls: 'stun:stun.counterpath.com' },
-    { urls: 'stun:stun.1und1.de' },
-    { urls: 'stun:stun.gmx.net' },
-    { urls: 'stun:stun.callwithus.com' },
-    { urls: 'stun:stun.counterpath.net' },
-    { urls: 'stun:stun.internetcalls.com' }
+    { urls: 'stun:stun1.l.google.com:19302' }
   ],
-  iceCandidatePoolSize: 10,
+  iceCandidatePoolSize: 2,
   bundlePolicy: 'max-bundle',
   rtcpMuxPolicy: 'require',
   iceTransportPolicy: 'all'
@@ -75,6 +59,7 @@ const elements = {
   endCallBtn: document.getElementById('end-call-btn'),
   remoteVideo: document.getElementById('remote-video'),
   localVideo: document.getElementById('local-video'),
+  remoteAudio: document.getElementById('remote-audio'),
   muteBtn: document.getElementById('mute-btn'),
   videoBtn: document.getElementById('video-btn'),
   enableAudioBtn: document.getElementById('enable-audio-btn'),
@@ -153,6 +138,38 @@ function initializeSocket() {
       endCall();
     }
   });
+}
+
+// Obtain local media with retries/fallbacks
+async function obtainLocalStream(wantVideo) {
+  const attempts = [];
+  // Prefer HD
+  attempts.push({ audio: true, video: wantVideo ? { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 60 } } : false });
+  // Lower resolution fallback
+  attempts.push({ audio: true, video: wantVideo ? { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 24, max: 30 } } : false });
+  // Basic boolean
+  attempts.push({ audio: true, video: !!wantVideo });
+
+  let lastError;
+  for (const c of attempts) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia(c);
+      return stream;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  // If video requested but failed, fallback to audio-only
+  if (wantVideo) {
+    try {
+      const audioOnly = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      showNotification('Камера недоступна, продолжаем со звуком', 'info');
+      return audioOnly;
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw lastError || new Error('Не удалось получить доступ к медиаустройствам');
 }
 
 // Event listeners setup
@@ -348,11 +365,16 @@ async function createPeerConnection() {
     // Ensure audio is not muted for remote stream
     if (event.track.kind === 'audio') {
       console.log('Audio track received and enabled');
-      // Force play audio
-      elements.remoteVideo.play().catch(e => {
-        console.log('Auto-play prevented, showing enable audio button');
-        elements.enableAudioBtn.style.display = 'block';
-      });
+      // Route audio to dedicated audio element
+      if (elements.remoteAudio) {
+        elements.remoteAudio.srcObject = remoteStream;
+        elements.remoteAudio.muted = false;
+        elements.remoteAudio.play().then(() => {
+          elements.enableAudioBtn.style.display = 'none';
+        }).catch(() => {
+          elements.enableAudioBtn.style.display = 'block';
+        });
+      }
     }
   };
   
@@ -457,29 +479,9 @@ async function startCall(callType) {
     console.log('Starting call, setting isInCall to true');
     isInCall = true;
     
-    // Get user media with improved constraints
-    const constraints = {
-      audio: true,
-      video: callType === 'video' ? {
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        frameRate: { ideal: 30, max: 60 }
-      } : false
-    };
-    
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log('Media stream obtained:', localStream.getTracks().map(t => t.kind));
-    } catch (error) {
-      console.warn('Failed to get media with constraints, trying basic constraints:', error);
-      // Fallback to basic constraints
-      const basicConstraints = {
-        audio: true,
-        video: callType === 'video'
-      };
-      localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
-      console.log('Media stream obtained with basic constraints:', localStream.getTracks().map(t => t.kind));
-    }
+    // Get user media with retry cascade
+    localStream = await obtainLocalStream(callType === 'video');
+    console.log('Media stream obtained:', localStream.getTracks().map(t => t.kind));
     
     // Create peer connection
     await createPeerConnection();
@@ -555,29 +557,9 @@ async function acceptCall() {
     console.log('Accepting call, setting isInCall to true');
     isInCall = true;
     
-    // Get user media with improved constraints
-    const constraints = {
-      audio: true,
-      video: callType === 'video' ? {
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        frameRate: { ideal: 30, max: 60 }
-      } : false
-    };
-    
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log('Media stream obtained:', localStream.getTracks().map(t => t.kind));
-    } catch (error) {
-      console.warn('Failed to get media with constraints, trying basic constraints:', error);
-      // Fallback to basic constraints
-      const basicConstraints = {
-        audio: true,
-        video: callType === 'video'
-      };
-      localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
-      console.log('Media stream obtained with basic constraints:', localStream.getTracks().map(t => t.kind));
-    }
+    // Get user media with retry cascade
+    localStream = await obtainLocalStream(callType === 'video');
+    console.log('Media stream obtained:', localStream.getTracks().map(t => t.kind));
     
     // Create peer connection using centralized function
     await createPeerConnection();
@@ -619,26 +601,8 @@ async function handleOffer(data) {
     // Remember the peer who sent the offer
     currentPeerId = data.sender;
 
-    // Get user media for answering
-    const constraints = {
-      audio: true,
-      video: data.offer.sdp.includes('m=video') ? {
-        width: { ideal: 1280, max: 1920 },
-        height: { ideal: 720, max: 1080 },
-        frameRate: { ideal: 30, max: 60 }
-      } : false
-    };
-    
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    } catch (error) {
-      console.warn('Failed to get media with constraints, trying basic constraints:', error);
-      const basicConstraints = {
-        audio: true,
-        video: data.offer.sdp.includes('m=video')
-      };
-      localStream = await navigator.mediaDevices.getUserMedia(basicConstraints);
-    }
+    // Get user media for answering with retry cascade
+    localStream = await obtainLocalStream(data.offer.sdp.includes('m=video'));
     
     // Create peer connection using centralized function
     await createPeerConnection();
@@ -845,9 +809,10 @@ function endCall() {
 }
 
 function enableAudio() {
-  if (elements.remoteVideo) {
-    elements.remoteVideo.muted = false;
-    elements.remoteVideo.play().then(() => {
+  const sink = elements.remoteAudio || elements.remoteVideo;
+  if (sink) {
+    sink.muted = false;
+    sink.play().then(() => {
       console.log('Audio enabled and playing');
       elements.enableAudioBtn.style.display = 'none';
       showNotification('Звук включен', 'success');
