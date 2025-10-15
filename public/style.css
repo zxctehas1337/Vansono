@@ -377,14 +377,16 @@ body {
 .message {
   margin-bottom: 20px;
   max-width: 70%;
+  display: flex;
+  justify-content: flex-start;
 }
 
 .message.own {
-  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .message.other {
-  margin-right: auto;
+  justify-content: flex-start;
 }
 
 .message-header {
@@ -392,6 +394,7 @@ body {
   align-items: center;
   gap: 10px;
   margin-bottom: 8px;
+  width: 100%;
 }
 
 .message.own .message-header {
@@ -416,11 +419,9 @@ body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   word-wrap: break-word;
   border: 1px solid #404040;
-  display: inline-block; /* shrink bubble to content */
+  display: inline-block;
   max-width: 100%;
   width: fit-content;
-  overflow-wrap: anywhere;
-  color: #ffffff;
 }
 
 .message.own .message-content {
