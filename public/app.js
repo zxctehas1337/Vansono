@@ -13,18 +13,10 @@ let otherUsers = [];
 let callTimeout = null;
 let pendingIceCandidates = [];
 let currentPeerId = null;
+let iceConfigLoaded = false;
 
-// WebRTC configuration
-const rtcConfig = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' }
-  ],
-  iceCandidatePoolSize: 2,
-  bundlePolicy: 'max-bundle',
-  rtcpMuxPolicy: 'require',
-  iceTransportPolicy: 'all'
-};
+// WebRTC configuration (will be loaded from server)
+let rtcConfig = null;
 
 // DOM elements
 const elements = {
@@ -75,9 +67,16 @@ const elements = {
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', () => {
-  initializeSocket();
-  setupEventListeners();
-  generateRandomRoomId();
+  Promise.all([
+    loadIceConfig(),
+    new Promise((resolve) => {
+      initializeSocket();
+      setupEventListeners();
+      resolve();
+    })
+  ]).finally(() => {
+    generateRandomRoomId();
+  });
 });
 
 // Socket.IO initialization
@@ -138,6 +137,39 @@ function initializeSocket() {
       endCall();
     }
   });
+}
+
+// Load ICE config from server (includes optional TURN)
+async function loadIceConfig() {
+  try {
+    const response = await fetch('/api/ice', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Failed to load ICE config');
+    const config = await response.json();
+    rtcConfig = {
+      iceServers: config.iceServers || [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ],
+      iceCandidatePoolSize: config.iceCandidatePoolSize || 2,
+      bundlePolicy: config.bundlePolicy || 'max-bundle',
+      rtcpMuxPolicy: config.rtcpMuxPolicy || 'require',
+      iceTransportPolicy: config.iceTransportPolicy || 'all'
+    };
+    iceConfigLoaded = true;
+  } catch (e) {
+    console.warn('Falling back to default ICE config due to error:', e);
+    rtcConfig = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ],
+      iceCandidatePoolSize: 2,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+      iceTransportPolicy: 'all'
+    };
+    iceConfigLoaded = true;
+  }
 }
 
 // Obtain local media with retries/fallbacks
@@ -346,6 +378,9 @@ async function createPeerConnection() {
   }
   
   // Create new peer connection
+  if (!rtcConfig) {
+    await loadIceConfig();
+  }
   peerConnection = new RTCPeerConnection(rtcConfig);
   
   // Add local stream tracks
