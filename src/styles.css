@@ -221,13 +221,16 @@ body {
 
 .code-inputs {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px; /* Уменьшено с 12px для компактности */
   margin-bottom: 32px;
 }
 
 .code-input {
-  flex: 1;
+  width: 48px;
   height: 48px; /* Уменьшено с 64px для квадратов */
+  flex: 0 0 48px;
   text-align: center;
   font-size: 20px; /* Уменьшено с 24px */
   font-weight: 700;
@@ -786,7 +789,9 @@ body {
   }
   
   .code-input {
+    width: 40px;
     height: 44px; /* Ещё меньше на мобиле */
+    flex: 0 0 40px;
     font-size: 18px;
   }
   

@@ -33,6 +33,7 @@ const backToWelcome = document.getElementById('back-to-welcome');
 
 // Code inputs
 const codeInputs = document.querySelectorAll('.code-input');
+const codeInputsContainer = document.querySelector('.code-inputs');
 
 // Error message
 const authError = document.getElementById('auth-error');
@@ -115,10 +116,10 @@ socket.on('register:error', (data) => {
 // Code input handling
 codeInputs.forEach((input, index) => {
   input.addEventListener('input', (e) => {
-    if (e.target.value.length === 1) {
-      if (index < codeInputs.length - 1) {
-        codeInputs[index + 1].focus();
-      }
+    // Keep only digits and single char
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 1);
+    if (e.target.value && index < codeInputs.length - 1) {
+      codeInputs[index + 1].focus();
     }
   });
 
@@ -126,8 +127,38 @@ codeInputs.forEach((input, index) => {
     if (e.key === 'Backspace' && !e.target.value && index > 0) {
       codeInputs[index - 1].focus();
     }
+    if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault();
+      codeInputs[index - 1].focus();
+    }
+    if (e.key === 'ArrowRight' && index < codeInputs.length - 1) {
+      e.preventDefault();
+      codeInputs[index + 1].focus();
+    }
+    if (e.key === 'Enter') {
+      verifyBtn.click();
+    }
   });
 });
+
+// Allow pasting full code (Ctrl+V)
+if (codeInputsContainer) {
+  codeInputsContainer.addEventListener('paste', (e) => {
+    const clipboard = (e.clipboardData || window.clipboardData);
+    if (!clipboard) return;
+    e.preventDefault();
+    const digits = clipboard.getData('text').replace(/\D/g, '').slice(0, codeInputs.length);
+    codeInputs.forEach((input, i) => {
+      input.value = digits[i] || '';
+    });
+    const nextIndex = digits.length < codeInputs.length ? digits.length : codeInputs.length - 1;
+    codeInputs[nextIndex].focus();
+    // Optionally focus Verify when complete
+    if (digits.length === codeInputs.length) {
+      verifyBtn.focus();
+    }
+  });
+}
 
 // Verification
 verifyBtn.addEventListener('click', () => {
