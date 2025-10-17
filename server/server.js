@@ -61,11 +61,12 @@ io.on('connection', (socket) => {
     // Отправка кода на реальную почту
     try {
       await sendVerificationCode(email, code);
+      socket.emit('register:code-sent', { message: 'Verification code sent to email' });
     } catch (error) {
       console.error('Email send error:', error);
+      socket.emit('register:error', { message: 'Failed to send email. Try again later.' });
+      return;
     }
-
-    socket.emit('register:code-sent', { message: 'Verification code sent to email' });
   });
 
   // Верификация кода

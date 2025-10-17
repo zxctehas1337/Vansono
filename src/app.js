@@ -76,7 +76,7 @@ const remoteVideo = document.getElementById('remote-video');
 function showError(message) {
   authError.textContent = message;
   authError.classList.add('show');
-  setTimeout(() => authError.classList.remove('show'), 5000);
+  setTimeout(() => authError.classList.remove('show'), 10000);
 }
 
 // Switch between auth forms
