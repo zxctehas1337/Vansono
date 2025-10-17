@@ -1,13 +1,10 @@
 const { Resend } = require('resend');
 
 const RESEND_API_KEY = process.env.TOKEN;
-const RESEND_FROM = process.env.RESEND_FROM || 'Sontha <server.vansono.com>';
-const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
+const RESEND_FROM = process.env.RESEND_FROM || 'server.vansono.com'
+const resendClient = new Resend(RESEND_API_KEY);
 
 async function sendEmail(mailOptions) {
-  if (!resendClient || !RESEND_FROM) {
-    throw new Error('Resend API key or sender address not configured. Please set TOKEN and RESEND_FROM in config.env');
-  }
   const payload = {
     from: RESEND_FROM,
     to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
