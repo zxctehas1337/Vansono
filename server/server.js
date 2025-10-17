@@ -5,9 +5,6 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
 const { sendVerificationCode } = require('../src/server/emailService');
-const { searchUsers } = require('../src/server/userService');
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 
 const app = express();
 const server = http.createServer(app);
@@ -33,18 +30,11 @@ io.on('connection', (socket) => {
   socket.on('register:request', async (data) => {
     const { email, name, username } = data;
 
-    // Проверка уникальности email и username (первично по памяти, затем в БД)
+    // Проверка уникальности email и username (только в памяти)
     const emailExists = Array.from(users.values()).some(u => u.email === email);
     const usernameExists = Array.from(users.values()).some(u => u.username === username);
-    let dbEmailExists = false;
-    try {
-      const emailUser = await prisma.user.findUnique({ where: { email } });
-      dbEmailExists = Boolean(emailUser);
-    } catch (e) {
-      console.error('DB email check error:', e);
-    }
 
-    if (emailExists || dbEmailExists) {
+    if (emailExists) {
       socket.emit('register:error', { message: 'Email already registered' });
       return;
     }
@@ -91,30 +81,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Создание пользователя (БД + память)
-    let dbUser;
-    try {
-      dbUser = await prisma.user.create({
-        data: {
-          email,
-          name: storedData.name,
-          username: storedData.username
-        },
-        select: { id: true, email: true, name: true, username: true, createdAt: true }
-      });
-    } catch (e) {
-      console.error('DB create user error:', e);
-      socket.emit('register:error', { message: 'Failed to create user' });
-      return;
-    }
-
-    const userId = dbUser.id || uuidv4();
+    // Создание пользователя только в памяти
+    const userId = uuidv4();
     users.set(userId, {
       id: userId,
-      email: dbUser.email,
-      name: dbUser.name,
-      username: dbUser.username,
-      createdAt: dbUser.createdAt ? new Date(dbUser.createdAt).getTime() : Date.now()
+      email,
+      name: storedData.name,
+      username: storedData.username,
+      createdAt: Date.now()
     });
 
     verificationCodes.delete(email);
@@ -131,25 +105,6 @@ io.on('connection', (socket) => {
     const { username } = data;
     const normalized = username.startsWith('@') ? username.slice(1) : username;
     let user = Array.from(users.values()).find(u => u.username === normalized);
-
-    if (!user) {
-      try {
-        // Try to find by email if username column doesn't exist
-        const dbUser = await prisma.user.findUnique({ where: { email: normalized } });
-        if (dbUser) {
-          user = {
-            id: dbUser.id,
-            email: dbUser.email,
-            name: dbUser.name,
-            username: dbUser.username || normalized,
-            createdAt: dbUser.createdAt ? new Date(dbUser.createdAt).getTime() : Date.now()
-          };
-          users.set(dbUser.id, user);
-        }
-      } catch (e) {
-        console.error('DB login find error:', e);
-      }
-    }
 
     if (!user) {
       socket.emit('login:error', { message: 'User not found' });
@@ -169,22 +124,19 @@ io.on('connection', (socket) => {
     socket.emit('users:list', userList);
   });
 
-  // Поиск пользователей
+  // Поиск пользователей (в памяти)
   socket.on('search_users', async (query) => {
-    try {
-      const results = await searchUsers(query);
-      const onlineSet = new Set(Array.from(onlineUsers.values()));
-      const enriched = results.map(u => ({
-        id: u.id,
-        name: u.name,
-        username: u.username,
-        online: onlineSet.has(u.id)
-      }));
-      socket.emit('search_results', enriched);
-    } catch (e) {
-      console.error('search_users error:', e);
+    const q = String(query || '').trim().toLowerCase();
+    if (!q) {
       socket.emit('search_results', []);
+      return;
     }
+    const results = Array.from(users.values())
+      .filter(u => (u.username && u.username.toLowerCase().includes(q)) || (u.name && u.name.toLowerCase().includes(q)))
+      .map(u => ({ id: u.id, name: u.name, username: u.username }));
+    const onlineSet = new Set(Array.from(onlineUsers.values()));
+    const enriched = results.map(u => ({ ...u, online: onlineSet.has(u.id) }));
+    socket.emit('search_results', enriched);
   });
 
   // Отправка сообщения

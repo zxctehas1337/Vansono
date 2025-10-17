@@ -10,5 +10,5 @@ if "%push_to_origin%" == "y" (
     git push origin master
 ) else (
     echo "Pushing to origin master cancelled"
-cmd /c cls
 )
+cmd /c cls

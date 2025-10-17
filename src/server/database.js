@@ -1,5 +1,2 @@
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
-
-module.exports = prisma;
+// Database removed: placeholder exported for backward compatibility
+module.exports = null;

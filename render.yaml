@@ -3,8 +3,8 @@ services:
     name: sontha-web
     env: node
     plan: free
-    buildCommand: npm install && npx prisma generate
-    startCommand: npm run prisma:deploy && npm start
+    buildCommand: npm install
+    startCommand: npm start
     autoDeploy: true
     envVars:
       - key: NODE_ENV

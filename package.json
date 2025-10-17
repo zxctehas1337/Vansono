@@ -7,11 +7,11 @@
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
     "desktop": "electron .",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
-    "prisma:push": "prisma db push",
-    "prisma:studio": "prisma studio"
+    "prisma:generate": "echo prisma disabled",
+    "prisma:migrate": "echo prisma disabled",
+    "prisma:deploy": "echo prisma disabled",
+    "prisma:push": "echo prisma disabled",
+    "prisma:studio": "echo prisma disabled"
   },
   "build": "electron-builder",
   "build:win": "electron-builder --win",
@@ -33,7 +33,6 @@
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "electron": "^28.0.0",
-    "electron-builder": "26.0.12",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.9",
@@ -44,8 +43,7 @@
     "socket.io": "^4.8.1",
     "@prisma/client": "^6.17.1",
     "socket.io-client": "^4.7.2",
-    "uuid": "^9.0.1",
-    "electron-builder": "^26.0.12"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
