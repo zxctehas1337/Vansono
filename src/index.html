@@ -25,12 +25,8 @@
         <p class="auth-subtitle">Secure messaging for everyone</p>
       </div>
 
-      <!-- Step 1: Registration Form -->
+      <!-- Registration Form (username + name + password + captcha) -->
       <div id="register-form" class="auth-form active">
-        <div class="input-group">
-          <label for="reg-email">Email address</label>
-          <input type="email" id="reg-email" placeholder="your@email.com" autocomplete="email">
-        </div>
         <div class="input-group">
           <label for="reg-name">Full name</label>
           <input type="text" id="reg-name" placeholder="John Doe" autocomplete="name">
@@ -39,42 +35,32 @@
           <label for="reg-username">Username</label>
           <input type="text" id="reg-username" placeholder="@username" autocomplete="username">
         </div>
+        <div class="input-group">
+          <label for="reg-password">Password</label>
+          <input type="password" id="reg-password" placeholder="********" autocomplete="new-password">
+        </div>
+        <div class="input-group">
+          <label>Captcha</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span id="captcha-question" style="min-width:100px"></span>
+            <button id="captcha-refresh" class="icon-btn" title="Refresh">↻</button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="reg-captcha">Answer</label>
+          <input type="text" id="reg-captcha" placeholder="Result">
+        </div>
         <button id="register-btn" class="primary-btn">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M10 1L19 5.5V14.5L10 19L1 14.5V5.5L10 1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
             <circle cx="10" cy="10" r="3" stroke="currentColor" stroke-width="2"/>
           </svg>
-          <span>Continue</span>
+          <span>Sign up</span>
         </button>
         <p class="auth-switch">Already have an account? <a href="#" id="show-login">Login</a></p>
       </div>
 
-      <!-- Step 2: Verification Code -->
-      <div id="verification-form" class="auth-form">
-        <button class="back-btn" id="back-to-register">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-            <path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <h2>Enter verification code</h2>
-        <p class="verification-hint">We've sent a 6-digit code to <span id="verify-email"></span></p>
-        <div class="code-inputs">
-          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" class="code-input" data-index="0">
-          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" class="code-input" data-index="1">
-          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" class="code-input" data-index="2">
-          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" class="code-input" data-index="3">
-          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" class="code-input" data-index="4">
-          <input type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" class="code-input" data-index="5">
-        </div>
-        <button id="verify-btn" class="primary-btn">
-          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-            <path d="M16 6L7.5 14.5L4 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          <span>Verify</span>
-        </button>
-      </div>
-
-      <!-- Login Form -->
+      <!-- Login Form (username + password + captcha) -->
       <div id="login-form" class="auth-form">
         <button class="back-btn" id="back-to-welcome">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -85,6 +71,21 @@
         <div class="input-group">
           <label for="login-username">Username</label>
           <input type="text" id="login-username" placeholder="@username">
+        </div>
+        <div class="input-group">
+          <label for="login-password">Password</label>
+          <input type="password" id="login-password" placeholder="********" autocomplete="current-password">
+        </div>
+        <div class="input-group">
+          <label>Captcha</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span id="captcha-question-login" style="min-width:100px"></span>
+            <button id="captcha-refresh-login" class="icon-btn" title="Refresh">↻</button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="login-captcha">Answer</label>
+          <input type="text" id="login-captcha" placeholder="Result">
         </div>
         <button id="login-btn" class="primary-btn">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">

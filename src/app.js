@@ -12,28 +12,44 @@ const callScreen = document.getElementById('call-screen');
 
 // Auth forms
 const registerForm = document.getElementById('register-form');
-const verificationForm = document.getElementById('verification-form');
 const loginForm = document.getElementById('login-form');
 
 // Auth inputs
-const regEmail = document.getElementById('reg-email');
 const regName = document.getElementById('reg-name');
 const regUsername = document.getElementById('reg-username');
+const regPassword = document.getElementById('reg-password');
+const regCaptcha = document.getElementById('reg-captcha');
+const captchaQuestion = document.getElementById('captcha-question');
+const captchaRefresh = document.getElementById('captcha-refresh');
+
 const loginUsername = document.getElementById('login-username');
-const verifyEmailSpan = document.getElementById('verify-email');
+const loginPassword = document.getElementById('login-password');
+const loginCaptcha = document.getElementById('login-captcha');
+const captchaQuestionLogin = document.getElementById('captcha-question-login');
+const captchaRefreshLogin = document.getElementById('captcha-refresh-login');
 
 // Auth buttons
 const registerBtn = document.getElementById('register-btn');
-const verifyBtn = document.getElementById('verify-btn');
 const loginBtn = document.getElementById('login-btn');
 const showLoginLink = document.getElementById('show-login');
 const showRegisterLink = document.getElementById('show-register');
-const backToRegister = document.getElementById('back-to-register');
 const backToWelcome = document.getElementById('back-to-welcome');
 
-// Code inputs
-const codeInputs = document.querySelectorAll('.code-input');
-const codeInputsContainer = document.querySelector('.code-inputs');
+// ===== Captcha helpers =====
+function requestCaptcha(forLogin = false) {
+  socket.emit('captcha:get');
+}
+
+socket.on('captcha:question', ({ question }) => {
+  if (document.activeElement && document.activeElement.closest('#login-form')) {
+    if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
+  } else {
+    if (captchaQuestion) captchaQuestion.textContent = question;
+  }
+});
+
+if (captchaRefresh) captchaRefresh.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(false); });
+if (captchaRefreshLogin) captchaRefreshLogin.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(true); });
 
 // Error message
 const authError = document.getElementById('auth-error');
@@ -85,94 +101,23 @@ function switchForm(hideForm, showForm) {
   setTimeout(() => showForm.classList.add('active'), 100);
 }
 
-// Registration
+// Registration (username + password + captcha)
 registerBtn.addEventListener('click', () => {
-  const email = regEmail.value.trim();
   const name = regName.value.trim();
   const username = regUsername.value.trim();
+  const password = regPassword.value.trim();
+  const captchaAnswer = regCaptcha.value.trim();
 
-  if (!email || !name || !username) {
+  if (!name || !username || !password || !captchaAnswer) {
     showError('Please fill in all fields');
     return;
   }
 
-  if (!email.includes('@')) {
-    showError('Please enter a valid email');
-    return;
-  }
-
-  socket.emit('register:request', { email, name, username });
-});
-
-socket.on('register:code-sent', () => {
-  verifyEmailSpan.textContent = regEmail.value;
-  switchForm(registerForm, verificationForm);
+  socket.emit('register', { name, username, password, captchaAnswer });
 });
 
 socket.on('register:error', (data) => {
   showError(data.message);
-});
-
-// Code input handling
-codeInputs.forEach((input, index) => {
-  input.addEventListener('input', (e) => {
-    // Keep only digits and single char
-    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 1);
-    if (e.target.value && index < codeInputs.length - 1) {
-      codeInputs[index + 1].focus();
-    }
-  });
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Backspace' && !e.target.value && index > 0) {
-      codeInputs[index - 1].focus();
-    }
-    if (e.key === 'ArrowLeft' && index > 0) {
-      e.preventDefault();
-      codeInputs[index - 1].focus();
-    }
-    if (e.key === 'ArrowRight' && index < codeInputs.length - 1) {
-      e.preventDefault();
-      codeInputs[index + 1].focus();
-    }
-    if (e.key === 'Enter') {
-      verifyBtn.click();
-    }
-  });
-});
-
-// Allow pasting full code (Ctrl+V)
-if (codeInputsContainer) {
-  codeInputsContainer.addEventListener('paste', (e) => {
-    const clipboard = (e.clipboardData || window.clipboardData);
-    if (!clipboard) return;
-    e.preventDefault();
-    const digits = clipboard.getData('text').replace(/\D/g, '').slice(0, codeInputs.length);
-    codeInputs.forEach((input, i) => {
-      input.value = digits[i] || '';
-    });
-    const nextIndex = digits.length < codeInputs.length ? digits.length : codeInputs.length - 1;
-    codeInputs[nextIndex].focus();
-    // Optionally focus Verify when complete
-    if (digits.length === codeInputs.length) {
-      verifyBtn.focus();
-    }
-  });
-}
-
-// Verification
-verifyBtn.addEventListener('click', () => {
-  const code = Array.from(codeInputs).map(input => input.value).join('');
-  
-  if (code.length !== 6) {
-    showError('Please enter the complete verification code');
-    return;
-  }
-
-  socket.emit('register:verify', {
-    email: regEmail.value.trim(),
-    code
-  });
 });
 
 socket.on('register:success', (data) => {
@@ -180,16 +125,18 @@ socket.on('register:success', (data) => {
   initializeChat();
 });
 
-// Login
+// Login (username + password + captcha)
 loginBtn.addEventListener('click', () => {
   const username = loginUsername.value.trim();
+  const password = loginPassword.value.trim();
+  const captchaAnswer = loginCaptcha.value.trim();
 
-  if (!username) {
-    showError('Please enter your username');
+  if (!username || !password || !captchaAnswer) {
+    showError('Please fill in all fields');
     return;
   }
 
-  socket.emit('login', { username });
+  socket.emit('login', { username, password, captchaAnswer });
 });
 
 socket.on('login:success', (data) => {
@@ -205,20 +152,18 @@ socket.on('login:error', (data) => {
 showLoginLink.addEventListener('click', (e) => {
   e.preventDefault();
   switchForm(registerForm, loginForm);
+  requestCaptcha(true);
 });
 
 showRegisterLink.addEventListener('click', (e) => {
   e.preventDefault();
   switchForm(loginForm, registerForm);
-});
-
-backToRegister.addEventListener('click', () => {
-  switchForm(verificationForm, registerForm);
-  codeInputs.forEach(input => input.value = '');
+  requestCaptcha(false);
 });
 
 backToWelcome.addEventListener('click', () => {
   switchForm(loginForm, registerForm);
+  requestCaptcha(false);
 });
 
 // ===== CHAT LOGIC =====
@@ -526,19 +471,31 @@ function showCallScreen(name, status) {
 // ===== UTILITIES =====
 
 // Handle Enter key in inputs
-regEmail.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') regName.focus();
-});
-
 regName.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') regUsername.focus();
 });
 
 regUsername.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') regPassword.focus();
+});
+
+regPassword.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') regCaptcha.focus();
+});
+
+regCaptcha.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') registerBtn.click();
 });
 
 loginUsername.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') loginPassword.focus();
+});
+
+loginPassword.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') loginCaptcha.focus();
+});
+
+loginCaptcha.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') loginBtn.click();
 });
 
@@ -550,6 +507,7 @@ function updateUserDisplay(user) {
   document.getElementById('current-user-avatar').textContent = user.name.charAt(0);
 }
 
+requestCaptcha(false);
 console.log('Sontha messenger initialized');
 
 // Add to your existing socket events

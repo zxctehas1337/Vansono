@@ -4,7 +4,7 @@ const socketIo = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
-const { sendVerificationCode } = require('../src/server/emailService');
+const bcrypt = require('bcryptjs');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,8 +16,9 @@ const io = socketIo(server, {
 });
 
 // Хранилище данных (в продакшене использовать БД)
-const users = new Map(); // userId -> {email, name, username, password}
-const verificationCodes = new Map(); // email -> code
+const users = new Map(); // userId -> {id, name, username, passwordHash, createdAt}
+// Простая капча в памяти: socketId -> { question, answer, expiresAt }
+const captchaChallenges = new Map();
 const onlineUsers = new Map(); // socketId -> userId
 const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
@@ -26,91 +27,101 @@ const chats = new Map(); // chatId -> {participants, messages}
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
-  // Регистрация: отправка кода верификации
-  socket.on('register:request', async (data) => {
-    const { email, name, username } = data;
+  // Капча: выдача задачи
+  socket.on('captcha:get', () => {
+    const challenge = generateCaptcha();
+    captchaChallenges.set(socket.id, challenge);
+    socket.emit('captcha:question', { question: challenge.question });
+  });
 
-    // Проверка уникальности email и username (только в памяти)
-    const emailExists = Array.from(users.values()).some(u => u.email === email);
-    const usernameExists = Array.from(users.values()).some(u => u.username === username);
+  // Регистрация по нику/паролю/имени + капча
+  socket.on('register', async (data) => {
+    const { username, password, name, captchaAnswer } = data || {};
 
-    if (emailExists) {
-      socket.emit('register:error', { message: 'Email already registered' });
+    if (!username || !password || !name) {
+      socket.emit('register:error', { message: 'Заполните имя, ник и пароль' });
       return;
     }
 
+    // Проверка капчи
+    const challenge = captchaChallenges.get(socket.id);
+    if (!challenge || Date.now() > challenge.expiresAt) {
+      socket.emit('register:error', { message: 'Капча истекла, обновите' });
+      return;
+    }
+    if (String(captchaAnswer).trim() !== String(challenge.answer)) {
+      socket.emit('register:error', { message: 'Неверная капча' });
+      return;
+    }
+
+    const normalized = username.startsWith('@') ? username.slice(1) : username;
+    const usernameExists = Array.from(users.values()).some(u => u.username === normalized);
     if (usernameExists) {
       socket.emit('register:error', { message: 'Username already taken' });
       return;
     }
 
-    // Генерация 6-значного кода
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    verificationCodes.set(email, { code, name, username, timestamp: Date.now() });
-
-    // Отправка кода на реальную почту
-    try {
-      await sendVerificationCode(email, code);
-      socket.emit('register:code-sent', { message: 'Verification code sent to email' });
-    } catch (error) {
-      console.error('Email send error:', error);
-      socket.emit('register:error', { message: 'Failed to send email. Try again later.' });
-      return;
-    }
-  });
-
-  // Верификация кода
-  socket.on('register:verify', async (data) => {
-    const { email, code } = data;
-    const storedData = verificationCodes.get(email);
-
-    if (!storedData) {
-      socket.emit('register:error', { message: 'No verification code found' });
-      return;
-    }
-
-    // Проверка времени (10 минут)
-    if (Date.now() - storedData.timestamp > 10 * 60 * 1000) {
-      verificationCodes.delete(email);
-      socket.emit('register:error', { message: 'Verification code expired' });
-      return;
-    }
-
-    if (storedData.code !== code) {
-      socket.emit('register:error', { message: 'Invalid verification code' });
-      return;
-    }
-
-    // Создание пользователя только в памяти
+    const passwordHash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
     users.set(userId, {
       id: userId,
-      email,
-      name: storedData.name,
-      username: storedData.username,
+      name,
+      username: normalized,
+      passwordHash,
       createdAt: Date.now()
     });
 
-    verificationCodes.delete(email);
+    captchaChallenges.delete(socket.id);
     onlineUsers.set(socket.id, userId);
 
     socket.emit('register:success', {
       user: users.get(userId),
       message: 'Registration successful'
     });
+
+    // Отправка списка пользователей
+    const userList = Array.from(users.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      online: Array.from(onlineUsers.values()).includes(u.id)
+    }));
+    socket.emit('users:list', userList);
   });
 
-  // Логин
+  // Логин с паролем и капчей
   socket.on('login', async (data) => {
-    const { username } = data;
-    const normalized = username.startsWith('@') ? username.slice(1) : username;
-    let user = Array.from(users.values()).find(u => u.username === normalized);
+    const { username, password, captchaAnswer } = data || {};
+    if (!username || !password) {
+      socket.emit('login:error', { message: 'Введите ник и пароль' });
+      return;
+    }
 
+    // Проверка капчи
+    const challenge = captchaChallenges.get(socket.id);
+    if (!challenge || Date.now() > challenge.expiresAt) {
+      socket.emit('login:error', { message: 'Капча истекла, обновите' });
+      return;
+    }
+    if (String(captchaAnswer).trim() !== String(challenge.answer)) {
+      socket.emit('login:error', { message: 'Неверная капча' });
+      return;
+    }
+
+    const normalized = username.startsWith('@') ? username.slice(1) : username;
+    const user = Array.from(users.values()).find(u => u.username === normalized);
     if (!user) {
       socket.emit('login:error', { message: 'User not found' });
       return;
     }
 
+    const ok = await bcrypt.compare(password, user.passwordHash || '');
+    if (!ok) {
+      socket.emit('login:error', { message: 'Invalid password' });
+      return;
+    }
+
+    captchaChallenges.delete(socket.id);
     onlineUsers.set(socket.id, user.id);
     socket.emit('login:success', { user });
 
@@ -226,3 +237,16 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Sontha server running on port ${PORT}`);
 });
+
+// Helpers
+function generateCaptcha() {
+  const a = Math.floor(1 + Math.random() * 9);
+  const b = Math.floor(1 + Math.random() * 9);
+  const op = Math.random() > 0.5 ? '+' : '-';
+  const answer = op === '+' ? a + b : a - b;
+  return {
+    question: `${a} ${op} ${b} = ?`,
+    answer,
+    expiresAt: Date.now() + 2 * 60 * 1000 // 2 минуты
+  };
+}
