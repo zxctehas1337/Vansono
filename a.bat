@@ -22,14 +22,14 @@ shift
 goto parse_args
 
 :execute
-echo Добавление файлов...
+echo Adding files...
 git add .
 
-echo Коммит с сообщением: "%commit_message%"
+echo Commit with message: "%commit_message%"
 git commit -m "%commit_message%"
 
 if "%auto_push%"=="true" (
-    echo Пуш на origin master...
+    echo Pushing to origin master...
     git push origin master
 )
 

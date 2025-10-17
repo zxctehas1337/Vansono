@@ -804,3 +804,11 @@ body {
     padding: 12px 20px;
   }
 }
+
+#captcha-question,
+#captcha-question-login {
+  background: var(--surface);
+  padding: 8px 12px;
+  border-radius: 6px;
+  display: inline-block;
+}

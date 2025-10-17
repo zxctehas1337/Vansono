@@ -648,4 +648,3 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Add this to your initialization code
 settingsBtn.addEventListener('click', switchTheme);
-}
