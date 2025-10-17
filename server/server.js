@@ -1,259 +1,93 @@
+const path = require('path');
 const express = require('express');
 const http = require('http');
-const socketIo = require('socket.io');
 const cors = require('cors');
-const path = require('path');
+const dotenv = require('dotenv');
+const { initDb, pool } = require('./db');
+const apiRoutes = require('./routes');
+const passport = require('passport');
+const { configureGoogle } = require('./google');
+
+dotenv.config({ path: path.resolve(process.cwd(), 'config.env') });
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
+const { Server } = require('socket.io');
+const io = new Server(server, {
+    cors: { origin: '*', methods: ['GET', 'POST'] },
 });
 
-// Middleware
 app.use(cors());
-app.use(express.static(path.join(__dirname, '../public')));
+app.use(express.json());
+app.use(express.static(path.resolve(process.cwd(), 'public')));
+app.use(passport.initialize());
+configureGoogle(passport);
+app.get('/api/auth/google', passport.authenticate('google', { scope: ['email', 'profile'] }));
+app.get('/api/auth/google/callback', passport.authenticate('google', { session: false, failureRedirect: '/' }), (req, res) => {
+    const { token, needsUsername } = req.user;
+    const redirectUrl = `/#oauth=1&token=${encodeURIComponent(token)}&needs=${needsUsername?1:0}`;
+    res.redirect(redirectUrl);
+});
+app.use('/api', apiRoutes);
 
-// Store active rooms
-const rooms = new Map();
+app.get('/health', async (req, res) => {
+    try {
+        const r = await pool.query('SELECT 1 as ok');
+        res.json({ status: 'ok', db: r.rows[0].ok === 1 });
+    } catch (e) {
+        res.status(500).json({ status: 'error', error: e.message });
+    }
+});
 
-// Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  // Join room
-  socket.on('join-room', (roomId, username) => {
-    socket.join(roomId);
-    socket.roomId = roomId;
-    socket.username = username;
-
-    // Initialize room if it doesn't exist
-    if (!rooms.has(roomId)) {
-      rooms.set(roomId, {
-        users: new Map(),
-        messages: [],
-        activeCall: null
-      });
-    }
-
-    const room = rooms.get(roomId);
-    room.users.set(socket.id, {
-      id: socket.id,
-      username: username,
-      isInCall: false
+    // Basic rooms: user:USER_ID
+    socket.on('auth', (userId) => {
+        if (userId) socket.join(`user:${userId}`);
     });
 
-    // Notify others in the room
-    socket.to(roomId).emit('user-joined', {
-      id: socket.id,
-      username: username
-    });
-
-    // Send room info to the user
-    socket.emit('room-info', {
-      users: Array.from(room.users.values()),
-      messages: room.messages.slice(-50), // Last 50 messages
-      activeCall: room.activeCall
-    });
-
-    console.log(`User ${username} joined room ${roomId}`);
-  });
-
-  // Handle chat messages
-  socket.on('chat-message', (data) => {
-    const room = rooms.get(socket.roomId);
-    if (room) {
-      const message = {
-        id: Date.now(),
-        username: socket.username,
-        message: data.message,
-        timestamp: new Date().toISOString()
-      };
-
-      room.messages.push(message);
-      
-      // Broadcast to all users in the room
-      io.to(socket.roomId).emit('chat-message', message);
-    }
-  });
-
-  // WebRTC signaling
-  socket.on('offer', (data) => {
-    socket.to(data.target).emit('offer', {
-      offer: data.offer,
-      sender: socket.id
-    });
-  });
-
-  socket.on('answer', (data) => {
-    socket.to(data.target).emit('answer', {
-      answer: data.answer,
-      sender: socket.id
-    });
-  });
-
-  socket.on('ice-candidate', (data) => {
-    socket.to(data.target).emit('ice-candidate', {
-      candidate: data.candidate,
-      sender: socket.id
-    });
-  });
-
-  // Call management
-  socket.on('start-call', (data) => {
-    const room = rooms.get(socket.roomId);
-    if (room && room.users.size > 1) {
-      // Check if there's already an active call
-      if (room.activeCall) {
-        socket.emit('call-error', { message: 'В комнате уже идет звонок' });
-        return;
-      }
-      
-      room.activeCall = {
-        caller: socket.id,
-        callerName: socket.username,
-        callType: data.callType,
-        participants: [socket.id]
-      };
-      
-      room.users.get(socket.id).isInCall = true;
-      
-      // Send call to other users in the room
-      socket.to(socket.roomId).emit('call-started', {
-        caller: socket.id,
-        callerName: socket.username,
-        callType: data.callType
-      });
-      
-      console.log(`Call started by ${socket.username} in room ${socket.roomId}`);
-    } else {
-      socket.emit('call-error', { message: 'В комнате нет других пользователей' });
-    }
-  });
-
-  socket.on('end-call', () => {
-    const room = rooms.get(socket.roomId);
-    if (room && room.activeCall) {
-      // Reset all users' call status
-      room.users.forEach(user => {
-        user.isInCall = false;
-      });
-      
-      // Clear active call
-      room.activeCall = null;
-      
-      // Notify all users in the room
-      io.to(socket.roomId).emit('call-ended', {
-        caller: socket.id
-      });
-      
-      console.log(`Call ended by ${socket.username} in room ${socket.roomId}`);
-    } else {
-      // Even if no active call, reset user's call status
-      if (room && room.users.has(socket.id)) {
-        room.users.get(socket.id).isInCall = false;
-        console.log(`Reset call status for ${socket.username}`);
-      }
-    }
-  });
-
-  socket.on('call-accepted', (data) => {
-    const room = rooms.get(socket.roomId);
-    if (room && room.activeCall) {
-      room.activeCall.participants.push(socket.id);
-      room.users.get(socket.id).isInCall = true;
-      
-      socket.to(data.target).emit('call-accepted', {
-        acceptor: socket.id,
-        acceptorName: socket.username
-      });
-      
-      console.log(`Call accepted by ${socket.username}`);
-    }
-  });
-
-  socket.on('call-rejected', (data) => {
-    const room = rooms.get(socket.roomId);
-    if (room && room.activeCall) {
-      // Clear active call if rejected
-      room.activeCall = null;
-      room.users.get(data.target).isInCall = false;
-      
-      socket.to(data.target).emit('call-rejected', {
-        rejector: socket.id,
-        rejectorName: socket.username
-      });
-      
-      console.log(`Call rejected by ${socket.username}`);
-    }
-  });
-
-  // Get room info
-  socket.on('get-room-info', () => {
-    const room = rooms.get(socket.roomId);
-    if (room) {
-      socket.emit('room-info', {
-        users: Array.from(room.users.values()),
-        messages: room.messages.slice(-50),
-        activeCall: room.activeCall
-      });
-    }
-  });
-
-  // Handle disconnect
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    
-    if (socket.roomId) {
-      const room = rooms.get(socket.roomId);
-      if (room) {
-        // If user was in a call, end the call
-        if (room.activeCall && room.activeCall.participants.includes(socket.id)) {
-          room.activeCall = null;
-          room.users.forEach(user => {
-            user.isInCall = false;
-          });
-          
-          // Notify others about call end
-          socket.to(socket.roomId).emit('call-ended', {
-            caller: socket.id,
-            reason: 'user-disconnected'
-          });
+    // Messaging via sockets
+    socket.on('message:send', async ({ chatId, senderId, text }) => {
+        if (!chatId || !senderId || !text) return;
+        const member = await pool.query('SELECT 1 FROM chat_participants WHERE chat_id=$1 AND user_id=$2', [chatId, senderId]);
+        if (!member.rowCount) return;
+        const { rows } = await pool.query(
+            'INSERT INTO messages(chat_id, sender_id, text) VALUES ($1,$2,$3) RETURNING id, sender_id, text, sent_at',
+            [chatId, senderId, text]
+        );
+        // Notify all participants
+        const participants = await pool.query('SELECT user_id FROM chat_participants WHERE chat_id=$1', [chatId]);
+        for (const p of participants.rows) {
+            io.to(`user:${p.user_id}`).emit('message:new', { chatId, message: rows[0] });
+            io.to(`user:${p.user_id}`).emit('chats:update', { chatId });
         }
-        
-        room.users.delete(socket.id);
-        
-        // Notify others in the room
-        socket.to(socket.roomId).emit('user-left', {
-          id: socket.id,
-          username: socket.username
-        });
+    });
 
-        // Clean up empty rooms
-        if (room.users.size === 0) {
-          rooms.delete(socket.roomId);
-          console.log(`Room ${socket.roomId} deleted`);
-        }
-      }
-    }
-  });
-});
-
-// Serve the main page
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, '../public/index.html'));
-});
-
-// Generate random room ID
-app.get('/api/room-id', (req, res) => {
-  const roomId = Math.random().toString(36).substring(2, 15);
-  res.json({ roomId });
+    // Simple signaling for WebRTC
+    socket.on('call:offer', ({ toUserId, fromUserId, sdp }) => {
+        io.to(`user:${toUserId}`).emit('call:offer', { fromUserId, sdp });
+    });
+    socket.on('call:answer', ({ toUserId, fromUserId, sdp }) => {
+        io.to(`user:${toUserId}`).emit('call:answer', { fromUserId, sdp });
+    });
+    socket.on('call:ice', ({ toUserId, fromUserId, candidate }) => {
+        io.to(`user:${toUserId}`).emit('call:ice', { fromUserId, candidate });
+    });
+    socket.on('call:hangup', ({ toUserId, fromUserId }) => {
+        io.to(`user:${toUserId}`).emit('call:hangup', { fromUserId });
+    });
+    socket.on('disconnect', () => {});
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+initDb()
+    .then(() => {
+        server.listen(PORT, () => {
+            console.log(`Server running on http://localhost:${PORT}`);
+        });
+    })
+    .catch((err) => {
+        console.error('Failed to init DB', err);
+        process.exit(1);
+    });
+

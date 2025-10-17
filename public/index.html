@@ -1,175 +1,88 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vansono - Современный мессенджер</title>
-    <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Vansono</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Welcome Screen -->
-        <div id="welcome-screen" class="welcome-screen">
-            <div class="welcome-content">
-                <div class="logo">
-                    <div class="logo-icon">
-                        <i class="fas fa-comments"></i>
-                    </div>
-                    <h1>Vansono</h1>
-                </div>
-                
-                <div class="room-setup">
-                    <div class="input-group">
-                        <input type="text" id="username-input" placeholder="Введите ваше имя" maxlength="20">
-                        <input type="text" id="room-id-input" placeholder="ID комнаты (оставьте пустым для создания новой)">
-                    </div>
-                    
-                    <button id="join-room-btn" class="primary-btn">
-                        <i class="fas fa-sign-in-alt"></i>
-                        Присоединиться к комнате
-                    </button>
-                    
-                    <div class="room-info">
-                        <div class="share-link" id="share-link" style="display: none;">
-                            <input type="text" id="room-link" readonly>
-                            <button id="copy-link-btn">
-                                <i class="fas fa-copy"></i>
-                            </button>
-                        </div>
-                    </div>
+    <div id="auth-view" class="view">
+        <div class="auth-card">
+            <h1>Vansono</h1>
+            <div class="auth-step" id="step-email">
+                <input id="email-input" type="email" placeholder="Email" autocomplete="email">
+                <button id="get-code-btn">Получить код</button>
+                <div class="oauth-row">
+                    <a id="google-btn" class="google" href="/api/auth/google" style="display:block;text-align:center;padding:12px 14px;border-radius:8px;text-decoration:none;">Войти через Google</a>
                 </div>
             </div>
-            
-            <div class="background-animation">
-                <div class="pulse-circle"></div>
-                <div class="pulse-circle delay-1"></div>
-                <div class="pulse-circle delay-2"></div>
+            <div class="auth-step" id="step-code" style="display:none;">
+                <input id="code-input" type="text" placeholder="Введите 6-значный код" maxlength="6">
+                <button id="verify-btn">Подтвердить</button>
             </div>
+            <div class="auth-step" id="step-username" style="display:none;">
+                <input id="username-input" type="text" placeholder="Выберите @username">
+                <button id="set-username-btn">Сохранить</button>
+            </div>
+            <div id="auth-error" class="error"></div>
         </div>
+    </div>
 
-        <!-- Chat Interface -->
-        <div id="chat-interface" class="chat-interface" style="display: none;">
+    <div id="app-view" class="view" style="display:none;">
+        <aside class="sidebar">
+            <div class="search">
+                <input id="search-input" placeholder="Поиск по @username">
+            </div>
+            <div id="search-results" class="results" style="display:none;"></div>
+            <div id="chats-list" class="chats"></div>
+        </aside>
+        <main class="chat">
             <div class="chat-header">
-                <div class="room-info-header">
-                    <h2 id="room-name">Комната</h2>
-                    <span class="room-id" id="current-room-id"></span>
-                </div>
-                <div class="header-actions">
-                    <button id="share-room-btn" class="icon-btn" title="Поделиться комнатой">
-                        <i class="fas fa-share-alt"></i>
-                      </button>
-                      
-                      <div id="share-options" class="share-menu" style="display:none;">
-                        <a href="#" id="share-telegram" target="_blank">Telegram</a>
-                        <a href="#" id="share-whatsapp" target="_blank">WhatsApp</a>
-                        <a href="#" id="share-viber" target="_blank">Viber</a>
-                      </div>
-                    <button id="leave-room-btn" class="icon-btn" title="Покинуть комнату">
-                        <i class="fas fa-sign-out-alt"></i>
-                    </button>
+                <div id="chat-title">Выберите чат</div>
+                <div class="chat-actions">
+                    <button id="call-btn" title="Позвонить">📞</button>
                 </div>
             </div>
-
-            <div class="chat-main">
-                <div class="users-panel">
-                    <h3>Участники</h3>
-                    <div id="users-list" class="users-list">
-                        <!-- Users will be populated here -->
-                    </div>
-                </div>
-
-                <div class="chat-panel">
-                    <div class="messages-container" id="messages-container">
-                        <!-- Messages will be populated here -->
-                    </div>
-                    
-                    <div class="message-input-container">
-                        <div class="message-input-wrapper">
-                            <input type="text" id="message-input" placeholder="Введите сообщение..." maxlength="500">
-                            <button id="send-message-btn" class="send-btn">
-                                <i class="fas fa-paper-plane"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            <div id="messages" class="messages"></div>
+            <div class="composer">
+                <input id="message-input" placeholder="Напишите сообщение..." autocomplete="off">
             </div>
+        </main>
+    </div>
 
+    <div id="call-modal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <div id="call-status">Звонок...</div>
             <div class="call-controls">
-                <button id="voice-call-btn" class="call-btn voice-call" title="Голосовой звонок">
-                    <i class="fas fa-phone"></i>
-                </button>
-                <button id="video-call-btn" class="call-btn video-call" title="Видеозвонок">
-                    <i class="fas fa-video"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- Call Interface -->
-        <div id="call-interface" class="call-interface" style="display: none;">
-            <div class="call-header">
-                <div class="call-info">
-                    <h3 id="call-status">Звонок...</h3>
-                    <p id="call-participant"></p>
-                </div>
-                <button id="end-call-btn" class="end-call-btn">
-                    <i class="fas fa-phone-slash"></i>
-                </button>
-            </div>
-
-            <audio id="remote-audio" autoplay></audio>
-
-            <div class="video-container">
-                <video id="remote-video" autoplay playsinline controls></video>
-                <video id="local-video" autoplay playsinline muted></video>
-            </div>
-
-            <div class="call-controls-panel">
-                <button id="mute-btn" class="control-btn" title="Выключить микрофон">
-                    <i class="fas fa-microphone"></i>
-                </button>
-                <button id="video-btn" class="control-btn" title="Выключить камеру">
-                    <i class="fas fa-video"></i>
-                </button>
-                <button id="enable-audio-btn" class="control-btn enable-audio" title="Включить звук" style="display: none;">
-                    <i class="fas fa-volume-up"></i>
-                </button>
-                <button id="hangup-btn" class="control-btn hangup" title="Завершить звонок">
-                    <i class="fas fa-phone-slash"></i>
-                </button>
-            </div>
-        </div>
-
-        <!-- Incoming Call Modal -->
-        <div id="incoming-call-modal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <div class="call-info">
-                    <h3>Входящий звонок</h3>
-                    <p id="incoming-caller-name"></p>
-                    <p id="incoming-call-type"></p>
-                </div>
-                <div class="modal-actions">
-                    <button id="accept-call-btn" class="accept-btn" data-tooltip="Принять">
-                        <i class="fas fa-phone"></i>
-                    </button>
-                    <button id="reject-call-btn" class="reject-btn" data-tooltip="Отклонить">
-                        <i class="fas fa-phone-slash"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Notification -->
-        <div id="notification" class="notification" style="display: none;">
-            <div class="notification-content">
-                <i class="fas fa-info-circle"></i>
-                <span id="notification-text"></span>
+                <button id="accept-call">Принять</button>
+                <button id="reject-call">Отклонить</button>
+                <button id="hangup-call" style="display:none;">Завершить</button>
+                <button id="toggle-mic" style="display:none;">Микрофон</button>
             </div>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script src="app.js"></script>
+    <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
+    <script type="module" src="/app.js"></script>
 </body>
+<script>
+// Prevent zoom on double tap on mobile
+document.addEventListener('touchend', function (event) {
+    const time = event.timeStamp;
+    if (!document.lastTouchEnd) {
+        document.lastTouchEnd = time;
+        return;
+    }
+    const delta = time - document.lastTouchEnd;
+    document.lastTouchEnd = time;
+    if (delta < 350) event.preventDefault();
+}, { passive: false });
+</script>
 </html>
+
+
