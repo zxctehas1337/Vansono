@@ -219,7 +219,7 @@ io.on('connection', (socket) => {
 });
 // Обработка статических файлов и SPA
 app.use(express.static(path.resolve(__dirname, '../src')));
-app.get('*', (_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));
+app.use((_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
