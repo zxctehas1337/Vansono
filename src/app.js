@@ -544,4 +544,42 @@ loginUsername.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') loginBtn.click();
 });
 
+// Update the user display function
+function updateUserDisplay(user) {
+  document.getElementById('current-user-name').textContent = user.name;
+  // Fix: Remove extra @ from username display
+  document.getElementById('current-user-username').textContent = user.username.startsWith('@') ? user.username : `@${user.username}`;
+  document.getElementById('current-user-avatar').textContent = user.name.charAt(0);
+}
+
 console.log('Sontha messenger initialized');
+
+// Add to your existing socket events
+const searchInput = document.getElementById('search-input');
+
+searchInput.addEventListener('input', debounce(async (e) => {
+  const query = e.target.value.trim();
+  if (query.length < 2) return;
+  
+  socket.emit('search_users', query);
+}), 300);
+
+socket.on('search_results', (users) => {
+  updateUsersList(users);
+});
+
+function updateUsersList(users) {
+  const chatsList = document.getElementById('chats-list');
+  chatsList.innerHTML = users.map(user => `
+    <div class="chat-item" data-user-id="${user.id}">
+      <div class="avatar">${user.name.charAt(0)}</div>
+      <div class="chat-item-info">
+        <div class="chat-item-header">
+          <span class="chat-item-name">${user.name}</span>
+        </div>
+        <div class="chat-item-preview">@${user.username}</div>
+      </div>
+      ${user.online ? '<div class="online-indicator"></div>' : ''}
+    </div>
+  `).join('');
+}
