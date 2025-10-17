@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
 const app = express();
 const server = http.createServer(app);
@@ -79,17 +80,44 @@ io.on('connection', (socket) => {
       message: 'Registration successful'
     });
 
-    // Отправка списка пользователей
+    // After successful registration, broadcast to all users
+    socket.on('register', async (data) => {
+      // ... existing registration code ...
+    
+    // After successful registration
     const userList = Array.from(users.values()).map(u => ({
       id: u.id,
       name: u.name,
       username: u.username,
       online: Array.from(onlineUsers.values()).includes(u.id)
     }));
-    socket.emit('users:list', userList);
+    
+    // Broadcast to all connected clients
+    io.emit('users:list', userList);
+    });
+    
+    // Update the disconnect handler
+    socket.on('disconnect', () => {
+      const userId = onlineUsers.get(socket.id);
+      onlineUsers.delete(socket.id);
+      
+      // Broadcast updated user list
+      const userList = Array.from(users.values()).map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        online: Array.from(onlineUsers.values()).includes(u.id)
+      }));
+      
+      io.emit('users:list', userList);
+      console.log('Client disconnected:', socket.id);
+    });
   });
 
   // Логин с паролем и капчей
+  const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
+  
+  // After successful login, generate and send token
   socket.on('login', async (data) => {
     const { username, password, captchaAnswer } = data || {};
     if (!username || !password) {
@@ -121,18 +149,36 @@ io.on('connection', (socket) => {
       return;
     }
 
-    captchaChallenges.delete(socket.id);
-    onlineUsers.set(socket.id, user.id);
-    socket.emit('login:success', { user });
-
-    // Отправка списка пользователей
-    const userList = Array.from(users.values()).map(u => ({
-      id: u.id,
-      name: u.name,
-      username: u.username,
-      online: Array.from(onlineUsers.values()).includes(u.id)
-    }));
-    socket.emit('users:list', userList);
+    if (ok) {
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+      captchaChallenges.delete(socket.id);
+      onlineUsers.set(socket.id, user.id);
+      socket.emit('login:success', { user, token });
+    }
+  });
+  
+  // Add new handler for token authentication
+  socket.on('auth:token', async (token) => {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      const user = users.get(decoded.userId);
+      
+      if (user) {
+        onlineUsers.set(socket.id, user.id);
+        socket.emit('auth:success', { user });
+        
+        // Send updated user list
+        const userList = Array.from(users.values()).map(u => ({
+          id: u.id,
+          name: u.name,
+          username: u.username,
+          online: Array.from(onlineUsers.values()).includes(u.id)
+        }));
+        socket.emit('users:list', userList);
+      }
+    } catch (err) {
+      socket.emit('auth:error', { message: 'Invalid token' });
+    }
   });
 
   // Поиск пользователей (в памяти)
@@ -240,13 +286,20 @@ server.listen(PORT, () => {
 
 // Helpers
 function generateCaptcha() {
-  const a = Math.floor(1 + Math.random() * 9);
-  const b = Math.floor(1 + Math.random() * 9);
+  // Ensure a is always larger than b for subtraction
+  const a = Math.floor(5 + Math.random() * 5); // 5-9
+  const b = Math.floor(1 + Math.random() * 4); // 1-4
   const op = Math.random() > 0.5 ? '+' : '-';
   const answer = op === '+' ? a + b : a - b;
   return {
     question: `${a} ${op} ${b} = ?`,
     answer,
-    expiresAt: Date.now() + 2 * 60 * 1000 // 2 минуты
+    expiresAt: Date.now() + 2 * 60 * 1000 // 2 minutes
   };
+}
+
+// In the register and login handlers, modify the captcha validation:
+if (parseInt(captchaAnswer) !== challenge.answer) {
+  socket.emit('register:error', { message: 'Invalid captcha' });
+  return;
 }

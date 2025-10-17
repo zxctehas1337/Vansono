@@ -6,12 +6,7 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "desktop": "electron .",
-    "prisma:generate": "echo prisma disabled",
-    "prisma:migrate": "echo prisma disabled",
-    "prisma:deploy": "echo prisma disabled",
-    "prisma:push": "echo prisma disabled",
-    "prisma:studio": "echo prisma disabled"
+    "desktop": "electron ."
   },
   "build": "electron-builder",
   "build:win": "electron-builder --win",

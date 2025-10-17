@@ -136,12 +136,43 @@ loginBtn.addEventListener('click', () => {
     return;
   }
 
-  socket.emit('login', { username, password, captchaAnswer });
-});
-
-socket.on('login:success', (data) => {
-  currentUser = data.user;
-  initializeChat();
+  // Add at the beginning of your client code
+  let authToken = localStorage.getItem('authToken');
+  
+  // After successful login
+  socket.on('login:success', (data) => {
+    if (data.token) {
+      localStorage.setItem('authToken', data.token);
+      authToken = data.token;
+    }
+    currentUser = data.user;
+    initializeChat();
+  });
+  
+  // Add auto-login on page load
+  window.addEventListener('load', () => {
+    const token = localStorage.getItem('authToken');
+    if (token) {
+      socket.emit('auth:token', token);
+    }
+  });
+  
+  // Handle auth success
+  socket.on('auth:success', (data) => {
+    // Update UI to logged in state
+    currentUser = data.user;
+    authScreen.classList.remove('active');
+    chatScreen.classList.add('active');
+    updateCurrentUserInfo(data.user);
+  });
+  
+  // Handle auth error
+  socket.on('auth:error', () => {
+    localStorage.removeItem('authToken');
+    // Show login screen
+    authScreen.classList.add('active');
+    chatScreen.classList.remove('active');
+  });
 });
 
 socket.on('login:error', (data) => {
