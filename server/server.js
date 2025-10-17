@@ -50,7 +50,7 @@ io.on('connection', (socket) => {
       socket.emit('register:error', { message: 'Капча истекла, обновите' });
       return;
     }
-    if (String(captchaAnswer).trim() !== String(challenge.answer)) {
+    if (Number.parseInt(String(captchaAnswer).trim(), 10) !== Number(challenge.answer)) {
       socket.emit('register:error', { message: 'Неверная капча' });
       return;
     }
@@ -79,22 +79,14 @@ io.on('connection', (socket) => {
       user: users.get(userId),
       message: 'Registration successful'
     });
-
-    // After successful registration, broadcast to all users
-    socket.on('register', async (data) => {
-      // ... existing registration code ...
-    
-    // After successful registration
-    const userList = Array.from(users.values()).map(u => ({
+    // Broadcast updated users list after registration
+    const userListAfterRegister = Array.from(users.values()).map(u => ({
       id: u.id,
       name: u.name,
       username: u.username,
       online: Array.from(onlineUsers.values()).includes(u.id)
     }));
-    
-    // Broadcast to all connected clients
-    io.emit('users:list', userList);
-    });
+    io.emit('users:list', userListAfterRegister);
     
     // Update the disconnect handler
     socket.on('disconnect', () => {
@@ -131,7 +123,7 @@ io.on('connection', (socket) => {
       socket.emit('login:error', { message: 'Капча истекла, обновите' });
       return;
     }
-    if (String(captchaAnswer).trim() !== String(challenge.answer)) {
+    if (Number.parseInt(String(captchaAnswer).trim(), 10) !== Number(challenge.answer)) {
       socket.emit('login:error', { message: 'Неверная капча' });
       return;
     }
@@ -154,6 +146,15 @@ io.on('connection', (socket) => {
       captchaChallenges.delete(socket.id);
       onlineUsers.set(socket.id, user.id);
       socket.emit('login:success', { user, token });
+      // Send users list to the logged-in user and broadcast updated list to all
+      const userListAfterLogin = Array.from(users.values()).map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        online: Array.from(onlineUsers.values()).includes(u.id)
+      }));
+      socket.emit('users:list', userListAfterLogin);
+      io.emit('users:list', userListAfterLogin);
     }
   });
   
@@ -271,6 +272,14 @@ io.on('connection', (socket) => {
   // Отключение
   socket.on('disconnect', () => {
     onlineUsers.delete(socket.id);
+    // Broadcast updated user list on disconnect
+    const userListOnDisconnect = Array.from(users.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      online: Array.from(onlineUsers.values()).includes(u.id)
+    }));
+    io.emit('users:list', userListOnDisconnect);
     console.log('Client disconnected:', socket.id);
   });
 });
@@ -286,11 +295,11 @@ server.listen(PORT, () => {
 
 // Helpers
 function generateCaptcha() {
-  // Ensure a is always larger than b for subtraction
-  const a = Math.floor(5 + Math.random() * 5); // 5-9
-  const b = Math.floor(1 + Math.random() * 4); // 1-4
+  // Generate simple +/- with possibly negative answers
+  const a = Math.floor(3 + Math.random() * 7); // 3-9
+  const b = Math.floor(4 + Math.random() * 6); // 4-9
   const op = Math.random() > 0.5 ? '+' : '-';
-  const answer = op === '+' ? a + b : a - b;
+  const answer = op === '+' ? a + b : a - b; // can be negative
   return {
     question: `${a} ${op} ${b} = ?`,
     answer,
@@ -298,8 +307,3 @@ function generateCaptcha() {
   };
 }
 
-// In the register and login handlers, modify the captcha validation:
-if (parseInt(captchaAnswer) !== challenge.answer) {
-  socket.emit('register:error', { message: 'Invalid captcha' });
-  return;
-}

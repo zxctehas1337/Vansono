@@ -41,11 +41,9 @@ function requestCaptcha(forLogin = false) {
 }
 
 socket.on('captcha:question', ({ question }) => {
-  if (document.activeElement && document.activeElement.closest('#login-form')) {
-    if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
-  } else {
-    if (captchaQuestion) captchaQuestion.textContent = question;
-  }
+  // Always display on both forms so user can switch without missing it
+  if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
+  if (captchaQuestion) captchaQuestion.textContent = question;
 });
 
 if (captchaRefresh) captchaRefresh.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(false); });
@@ -136,43 +134,39 @@ loginBtn.addEventListener('click', () => {
     return;
   }
 
-  // Add at the beginning of your client code
-  let authToken = localStorage.getItem('authToken');
-  
-  // After successful login
-  socket.on('login:success', (data) => {
-    if (data.token) {
-      localStorage.setItem('authToken', data.token);
-      authToken = data.token;
-    }
-    currentUser = data.user;
-    initializeChat();
-  });
-  
-  // Add auto-login on page load
-  window.addEventListener('load', () => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      socket.emit('auth:token', token);
-    }
-  });
-  
-  // Handle auth success
-  socket.on('auth:success', (data) => {
-    // Update UI to logged in state
-    currentUser = data.user;
-    authScreen.classList.remove('active');
-    chatScreen.classList.add('active');
-    updateCurrentUserInfo(data.user);
-  });
-  
-  // Handle auth error
-  socket.on('auth:error', () => {
-    localStorage.removeItem('authToken');
-    // Show login screen
-    authScreen.classList.add('active');
-    chatScreen.classList.remove('active');
-  });
+  socket.emit('login', { username, password, captchaAnswer });
+});
+// Persist token and auto-login
+socket.on('login:success', (data) => {
+  if (data.token) {
+    localStorage.setItem('authToken', data.token);
+  }
+  currentUser = data.user;
+  initializeChat();
+});
+
+window.addEventListener('load', () => {
+  const token = localStorage.getItem('authToken');
+  if (token) {
+    socket.emit('auth:token', token);
+  } else {
+    // Ensure captcha is ready on initial load
+    requestCaptcha(false);
+  }
+});
+
+socket.on('auth:success', (data) => {
+  currentUser = data.user;
+  authScreen.classList.remove('active');
+  chatScreen.classList.add('active');
+  updateUserDisplay(data.user);
+});
+
+socket.on('auth:error', () => {
+  localStorage.removeItem('authToken');
+  authScreen.classList.add('active');
+  chatScreen.classList.remove('active');
+  requestCaptcha(false);
 });
 
 socket.on('login:error', (data) => {
