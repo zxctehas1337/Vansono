@@ -2,11 +2,13 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
-const sql = require('mssql');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
 const { sendVerificationCode } = require('../src/server/emailService');
 const { searchUsers } = require('../src/server/userService');
+const { PrismaClient } = require('@prisma/client');
+const prisma = new PrismaClient();
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -23,8 +25,6 @@ const onlineUsers = new Map(); // socketId -> userId
 const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
 
-// Email now handled via src/server/emailService using SMTP envs
-
 // Socket.IO обработчики
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
@@ -32,26 +32,26 @@ io.on('connection', (socket) => {
   // Регистрация: отправка кода верификации
   socket.on('register:request', async (data) => {
     const { email, name, username } = data;
-    
+
     // Проверка уникальности email и username (первично по памяти, затем в БД)
     const emailExists = Array.from(users.values()).some(u => u.email === email);
     const usernameExists = Array.from(users.values()).some(u => u.username === username);
     let dbEmailExists = false;
     let dbUsernameExists = false;
     try {
-      const emailUser = await sql.user.findUnique({ where: { email } });
-      const usernameUser = await sql.user.findUnique({ where: { username } });
+      const emailUser = await prisma.user.findUnique({ where: { email } });
+      const usernameUser = await prisma.user.findUnique({ where: { username } });
       dbEmailExists = Boolean(emailUser);
       dbUsernameExists = Boolean(usernameUser);
     } catch (e) {
       console.error('DB check error:', e);
     }
-    
+
     if (emailExists || dbEmailExists) {
       socket.emit('register:error', { message: 'Email already registered' });
       return;
     }
-    
+
     if (usernameExists || dbUsernameExists) {
       socket.emit('register:error', { message: 'Username already taken' });
       return;
@@ -96,7 +96,7 @@ io.on('connection', (socket) => {
     // Создание пользователя (БД + память)
     let dbUser;
     try {
-      dbUser = await sql.user.create({
+      dbUser = await prisma.user.create({
         data: {
           email,
           name: storedData.name,
@@ -136,16 +136,16 @@ io.on('connection', (socket) => {
 
     if (!user) {
       try {
-        const dbUser = await sql.query`SELECT * FROM users WHERE username = ${normalized}`;
-        if (dbUser.recordset.length > 0) {
+        const dbUser = await prisma.user.findUnique({ where: { username: normalized } });
+        if (dbUser) {
           user = {
-            id: dbUser.recordset[0].id,
-            email: dbUser.recordset[0].email,
-            name: dbUser.recordset[0].name,
-            username: dbUser.recordset[0].username,
-            createdAt: new Date(dbUser.recordset[0].createdAt).getTime()
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            username: dbUser.username,
+            createdAt: dbUser.createdAt ? new Date(dbUser.createdAt).getTime() : Date.now()
           };
-          users.set(dbUser.recordset[0].id, user);
+          users.set(dbUser.id, user);
         }
       } catch (e) {
         console.error('DB login find error:', e);
@@ -159,7 +159,7 @@ io.on('connection', (socket) => {
 
     onlineUsers.set(socket.id, user.id);
     socket.emit('login:success', { user });
-    
+
     // Отправка списка пользователей
     const userList = Array.from(users.values()).map(u => ({
       id: u.id,
@@ -169,6 +169,7 @@ io.on('connection', (socket) => {
     }));
     socket.emit('users:list', userList);
   });
+
   // Поиск пользователей
   socket.on('search_users', async (query) => {
     try {
@@ -187,12 +188,11 @@ io.on('connection', (socket) => {
     }
   });
 
-
   // Отправка сообщения
   socket.on('message:send', (data) => {
     const { to, text } = data;
     const fromUserId = onlineUsers.get(socket.id);
-    
+
     if (!fromUserId) return;
 
     const message = {
@@ -218,11 +218,11 @@ io.on('connection', (socket) => {
   socket.on('messages:get', (data) => {
     const { userId } = data;
     const currentUserId = onlineUsers.get(socket.id);
-    
+
     if (!currentUserId) return;
 
-    const chatMessages = messages.filter(m => 
-      (m.from === currentUserId && m.to === userId) || 
+    const chatMessages = messages.filter(m =>
+      (m.from === currentUserId && m.to === userId) ||
       (m.from === userId && m.to === currentUserId)
     );
 
@@ -233,7 +233,7 @@ io.on('connection', (socket) => {
   socket.on('call:initiate', (data) => {
     const { to, signal } = data;
     const fromUserId = onlineUsers.get(socket.id);
-    
+
     const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === to);
     if (recipientSocket) {
       io.to(recipientSocket[0]).emit('call:incoming', {
@@ -266,6 +266,7 @@ io.on('connection', (socket) => {
     console.log('Client disconnected:', socket.id);
   });
 });
+
 // Обработка статических файлов и SPA
 app.use(express.static(path.resolve(__dirname, '../src')));
 app.use((_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));

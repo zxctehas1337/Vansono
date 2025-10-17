@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server/server.js",
     "dev": "nodemon server/server.js",
-    "desktop": "electron ."
+    "desktop": "electron .",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:studio": "prisma studio"
   },
   "build": "'",
   "keywords": [
@@ -38,6 +41,10 @@
   },
   "devDependencies": {
     "electron-builder": "^24.9.1",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.10",
+    "prisma": "^6.17.1"
+  },
+  "prisma": {
+    "schema": "schema.prisma"
   }
 }
