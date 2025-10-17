@@ -23,6 +23,17 @@ const smtpTransport = nodemailer.createTransport({
   socketTimeout: 7000      // 7s for overall inactivity
 });
 
+function parseFromAddress(rawFrom) {
+  if (!rawFrom) return undefined;
+  const match = /^(.*)<([^>]+)>$/.exec(String(rawFrom));
+  if (match) {
+    const name = match[1].trim().replace(/"/g, '');
+    const email = match[2].trim();
+    return { name: name || undefined, email };
+  }
+  return { email: String(rawFrom).trim() };
+}
+
 async function sendWithSMTP(mailOptions) {
   // Fail fast if no credentials provided
   if (!process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -31,6 +42,41 @@ async function sendWithSMTP(mailOptions) {
     throw err;
   }
   return smtpTransport.sendMail(mailOptions);
+}
+
+async function sendWithMailerSend(mailOptions) {
+  const apiKey = process.env.TOKEN; // MailerSend API token
+  const fromRaw = process.env.MAILERSEND_FROM || process.env.SMTP_FROM || mailOptions.from;
+  if (!apiKey || !fromRaw) {
+    const err = new Error('MailerSend is not configured');
+    err.code = 'ENOMAILERSEND';
+    throw err;
+  }
+
+  const from = parseFromAddress(fromRaw);
+  const toArray = Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to];
+  const to = toArray.filter(Boolean).map((e) => ({ email: e }));
+
+  const res = await fetch('https://api.mailersend.com/v1/email', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from,
+      to,
+      subject: mailOptions.subject,
+      html: mailOptions.html
+    })
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const err = new Error(`MailerSend API error: ${res.status} ${text}`);
+    err.code = 'EMAIL_API_ERROR';
+    throw err;
+  }
 }
 
 async function sendWithResend(mailOptions) {
@@ -89,15 +135,14 @@ async function sendVerificationCode(email, code) {
     `
   };
 
-  // Prefer Resend API if configured (fast, reliable on PaaS). Otherwise use SMTP.
-  const hasResend = Boolean(process.env.RESEND_API_KEY && (process.env.RESEND_FROM || process.env.SMTP_FROM));
-
-  if (hasResend) {
+  // Prefer MailerSend HTTP API if configured (best for PaaS). Otherwise try Resend if configured, else SMTP.
+  const hasMailerSend = Boolean(process.env.TOKEN && (process.env.MAILERSEND_FROM || process.env.SMTP_FROM || mailOptions.from));
+  if (hasMailerSend) {
     try {
-      await sendWithResend(mailOptions);
+      await sendWithMailerSend(mailOptions);
       return true;
     } catch (err) {
-      // If Resend fails for transient reasons, attempt SMTP as a backup
+      // If MailerSend fails transiently, fall back to SMTP
       const transient = ['ETIMEDOUT', 'ECONNRESET', 'EAI_AGAIN'];
       if (transient.includes(err.code)) {
         await sendWithSMTP(mailOptions);
@@ -107,6 +152,13 @@ async function sendVerificationCode(email, code) {
     }
   }
 
+  // Optional: Resend fallback only if explicitly configured
+  const hasResend = Boolean(process.env.RESEND_API_KEY && (process.env.RESEND_FROM || process.env.SMTP_FROM));
+  if (hasResend) {
+    await sendWithResend(mailOptions);
+    return true;
+  }
+
   // No Resend configured → use SMTP and fail fast on connection issues
   try {
     await sendWithSMTP(mailOptions);
@@ -114,8 +166,8 @@ async function sendVerificationCode(email, code) {
   } catch (err) {
     const transient = ['ETIMEDOUT', 'ECONNECTION', 'ENOTFOUND', 'EAI_AGAIN'];
     if (transient.includes(err.code) || err.code === 'ENOCREDS') {
-      // If SMTP is unavailable and Resend is not configured, surface a clear error
-      const fallbackErr = new Error('Email provider not reachable. Configure RESEND_API_KEY or fix SMTP.');
+      // If SMTP is unavailable and no HTTP provider configured, surface a clear error
+      const fallbackErr = new Error('Email provider not reachable. Configure TOKEN (MailerSend) or fix SMTP.');
       fallbackErr.cause = err;
       throw fallbackErr;
     }
