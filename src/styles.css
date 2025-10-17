@@ -54,6 +54,7 @@ body {
 
 .auth-container {
   width: 460px;
+  max-width: 90vw; /* Добавлено: адаптация под мобильные */
   padding: 48px;
   background: var(--bg-secondary);
   border-radius: 24px;
@@ -220,15 +221,15 @@ body {
 
 .code-inputs {
   display: flex;
-  gap: 12px;
+  gap: 8px; /* Уменьшено с 12px для компактности */
   margin-bottom: 32px;
 }
 
 .code-input {
   flex: 1;
-  height: 64px;
+  height: 48px; /* Уменьшено с 64px для квадратов */
   text-align: center;
-  font-size: 24px;
+  font-size: 20px; /* Уменьшено с 24px */
   font-weight: 700;
   background: var(--bg-tertiary);
   border: 2px solid var(--border-color);
@@ -241,7 +242,7 @@ body {
   outline: none;
   border-color: var(--accent-primary);
   box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-  transform: scale(1.05);
+  /* Убрано: transform: scale(1.05); чтобы избежать переполнения */
 }
 
 /* Error Message */
@@ -770,4 +771,31 @@ body {
 
 .loading {
   animation: spin 1s linear infinite;
+}
+
+/* Медиа-запрос для мобильных (добавлено) */
+@media (max-width: 480px) {
+  .auth-container {
+    padding: 32px 24px; /* Меньше отступов */
+    width: 100%;
+    max-width: none;
+  }
+  
+  .code-inputs {
+    gap: 6px; /* Ещё меньше gap */
+  }
+  
+  .code-input {
+    height: 44px; /* Ещё меньше на мобиле */
+    font-size: 18px;
+  }
+  
+  .auth-title {
+    font-size: 28px; /* Уменьшить заголовок */
+  }
+  
+  .primary-btn {
+    margin-top: 24px; /* Меньше отступа сверху */
+    padding: 12px 20px;
+  }
 }
