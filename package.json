@@ -1,0 +1,38 @@
+{
+  "name": "sontha",
+  "version": "1.0.0",
+  "description": "Modern messenger with dark theme, email verification, and WebRTC support",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "node server/server.js",
+    "dev": "nodemon server/server.js"
+  },
+  "build": "'",
+  "keywords": ["messenger", "electron", "socket.io", "webrtc"],
+  "author": "Sontha Team",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "electron": "^28.0.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.9",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "pg": "^8.16.3",
+    "simple-peer": "^9.11.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.7.2",
+    "uuid": "^9.0.1",
+    "electron-builder":"26.0.12"
+  },
+  "devDependencies": {
+    "electron-builder": "^24.9.1",
+    "nodemon": "^3.1.10"
+  }
+}
