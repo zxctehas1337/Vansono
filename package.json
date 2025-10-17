@@ -4,9 +4,9 @@
   "description": "Modern messenger with dark theme, email verification, and WebRTC support",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "server": "node server/server.js",
-    "dev": "nodemon server/server.js"
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "desktop": "electron ."
   },
   "build": "'",
   "keywords": ["messenger", "electron", "socket.io", "webrtc"],
