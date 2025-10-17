@@ -9,6 +9,8 @@
     "desktop": "electron .",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:push": "prisma db push",
     "prisma:studio": "prisma studio"
   },
   "build": "electron-builder",
