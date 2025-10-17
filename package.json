@@ -11,7 +11,11 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio"
   },
-  "build": "'",
+  "build": "electron-builder",
+  "build:win": "electron-builder --win",
+  "build:mac": "electron-builder --mac",
+  "build:linux": "electron-builder --linux",
+  "build:all": "electron-builder --all",
   "keywords": [
     "messenger",
     "electron",
@@ -36,13 +40,15 @@
     "pg": "^8.16.3",
     "simple-peer": "^9.11.1",
     "socket.io": "^4.8.1",
+    "@prisma/client": "^6.17.1",
     "socket.io-client": "^4.7.2",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "electron-builder": "^26.0.12"
   },
   "devDependencies": {
-    "electron-builder": "^24.9.1",
     "nodemon": "^3.1.10",
-    "prisma": "^6.17.1"
+    "prisma": "^6.17.1",
+    "electron-builder": "^26.0.12"
   },
   "prisma": {
     "schema": "schema.prisma"

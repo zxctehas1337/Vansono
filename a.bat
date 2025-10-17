@@ -1,5 +1,5 @@
 @echo off
-chcp 1251
+color 2
 git add .
 echo "Please enter the commit message"
 set /p commit_message=
