@@ -43,6 +43,8 @@
     "socket.io": "^4.8.1",
     "@prisma/client": "^6.17.1",
     "socket.io-client": "^4.7.2",
+    "node-fetch": "^3.3.2",
+    "resend": "^4.0.0",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
