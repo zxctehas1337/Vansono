@@ -573,3 +573,79 @@ function updateUsersList(users) {
     </div>
   `).join('');
 }
+
+// Theme configurations
+const themes = {
+  dark: {
+    '--bg-primary': '#1a1a1a',
+    '--bg-secondary': '#242424',
+    '--bg-tertiary': '#2f2f2f',
+    '--text-primary': '#ffffff',
+    '--text-secondary': '#a0a0a0',
+    '--text-tertiary': '#666666',
+    '--accent-primary': '#667eea',
+    '--accent-secondary': '#764ba2',
+    '--border-color': '#333333',
+    '--success': '#10B981',
+    '--error': '#EF4444'
+  },
+  light: {
+    '--bg-primary': '#ffffff',
+    '--bg-secondary': '#f5f5f5',
+    '--bg-tertiary': '#e5e5e5',
+    '--text-primary': '#1a1a1a',
+    '--text-secondary': '#666666',
+    '--text-tertiary': '#999999',
+    '--accent-primary': '#667eea',
+    '--accent-secondary': '#764ba2',
+    '--border-color': '#e0e0e0',
+    '--success': '#10B981',
+    '--error': '#EF4444'
+  },
+  monokai: {
+    '--bg-primary': '#272822',
+    '--bg-secondary': '#3e3d32',
+    '--bg-tertiary': '#49483e',
+    '--text-primary': '#f8f8f2',
+    '--text-secondary': '#a6e22e',
+    '--text-tertiary': '#75715e',
+    '--accent-primary': '#fd971f',
+    '--accent-secondary': '#ae81ff',
+    '--border-color': '#49483e',
+    '--success': '#a6e22e',
+    '--error': '#f92672'
+  }
+};
+
+// Add this after your other DOM element selections
+const settingsBtn = document.getElementById('settings-btn');
+
+// Theme switching function
+function switchTheme() {
+  const themeNames = Object.keys(themes);
+  const currentTheme = localStorage.getItem('theme') || 'dark';
+  const currentIndex = themeNames.indexOf(currentTheme);
+  const nextIndex = (currentIndex + 1) % themeNames.length;
+  const nextTheme = themeNames[nextIndex];
+  
+  applyTheme(nextTheme);
+  localStorage.setItem('theme', nextTheme);
+}
+
+// Apply theme function
+function applyTheme(themeName) {
+  const theme = themes[themeName];
+  Object.entries(theme).forEach(([property, value]) => {
+    document.documentElement.style.setProperty(property, value);
+  });
+}
+
+// Initialize theme
+document.addEventListener('DOMContentLoaded', () => {
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  applyTheme(savedTheme);
+});
+
+// Add this to your initialization code
+settingsBtn.addEventListener('click', switchTheme);
+}

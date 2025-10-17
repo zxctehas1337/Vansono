@@ -24,7 +24,6 @@ const onlineUsers = new Map(); // socketId -> userId
 const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
 
-// Socket.IO обработчики
 io.on('connection', (socket) => {
   console.log('New client connected:', socket.id);
 
@@ -295,15 +294,14 @@ server.listen(PORT, () => {
 
 // Helpers
 function generateCaptcha() {
-  // Generate simple +/- with possibly negative answers
-  const a = Math.floor(3 + Math.random() * 7); // 3-9
-  const b = Math.floor(4 + Math.random() * 6); // 4-9
-  const op = Math.random() > 0.5 ? '+' : '-';
-  const answer = op === '+' ? a + b : a - b; // can be negative
+  // Генерирует только сложение, без вычитания
+  const a = Math.floor(3 + Math.random() * 7); 
+  const b = Math.floor(4 + Math.random() * 6); 
+  const answer = a + b;
   return {
-    question: `${a} ${op} ${b} = ?`,
+    question: `${a} + ${b} = ?`,
     answer,
-    expiresAt: Date.now() + 2 * 60 * 1000 // 2 minutes
+    expiresAt: Date.now() + 2 * 60 * 1000 
   };
 }
 
