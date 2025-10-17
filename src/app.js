@@ -1,5 +1,4 @@
-const socket = io('http://localhost:3000');
-
+const socket = io(window.location.origin.includes('localhost') ? 'http://localhost:3000' : window.location.origin);
 // State
 let currentUser = null;
 let currentChatUser = null;

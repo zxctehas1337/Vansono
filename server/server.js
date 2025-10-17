@@ -3,6 +3,9 @@ const http = require('http');
 const socketIo = require('socket.io');
 const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
+const path = require('path');
+app.use(express.static(path.resolve(__dirname, '../src')));
+app.get('*', (_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));
 
 const app = express();
 const server = http.createServer(app);
