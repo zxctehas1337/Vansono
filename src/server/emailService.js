@@ -1,7 +1,7 @@
 const { Resend } = require('resend');
 
 const RESEND_API_KEY = process.env.TOKEN;
-const RESEND_FROM = process.env.RESEND_FROM || 'Sontha <onboarding@resend.dev>';
+const RESEND_FROM = process.env.RESEND_FROM || 'Sontha <server.vansono.com>';
 const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 async function sendEmail(mailOptions) {
