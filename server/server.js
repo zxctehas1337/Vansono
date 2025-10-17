@@ -2,10 +2,10 @@ const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const { v4: uuidv4 } = require('uuid');
+const sql = require('mssql');
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
 const { sendVerificationCode } = require('../src/server/emailService');
-const prisma = require('../src/server/database');
 const { searchUsers } = require('../src/server/userService');
 const app = express();
 const server = http.createServer(app);
@@ -39,8 +39,8 @@ io.on('connection', (socket) => {
     let dbEmailExists = false;
     let dbUsernameExists = false;
     try {
-      const emailUser = await prisma.user.findUnique({ where: { email } });
-      const usernameUser = await prisma.user.findUnique({ where: { username } });
+      const emailUser = await sql.user.findUnique({ where: { email } });
+      const usernameUser = await sql.user.findUnique({ where: { username } });
       dbEmailExists = Boolean(emailUser);
       dbUsernameExists = Boolean(usernameUser);
     } catch (e) {
@@ -96,7 +96,7 @@ io.on('connection', (socket) => {
     // Создание пользователя (БД + память)
     let dbUser;
     try {
-      dbUser = await prisma.user.create({
+      dbUser = await sql.user.create({
         data: {
           email,
           name: storedData.name,
@@ -136,16 +136,16 @@ io.on('connection', (socket) => {
 
     if (!user) {
       try {
-        const dbUser = await prisma.user.findUnique({ where: { username: normalized } });
-        if (dbUser) {
+        const dbUser = await sql.query`SELECT * FROM users WHERE username = ${normalized}`;
+        if (dbUser.recordset.length > 0) {
           user = {
-            id: dbUser.id,
-            email: dbUser.email,
-            name: dbUser.name,
-            username: dbUser.username,
-            createdAt: new Date(dbUser.createdAt).getTime()
+            id: dbUser.recordset[0].id,
+            email: dbUser.recordset[0].email,
+            name: dbUser.recordset[0].name,
+            username: dbUser.recordset[0].username,
+            createdAt: new Date(dbUser.recordset[0].createdAt).getTime()
           };
-          users.set(dbUser.id, user);
+          users.set(dbUser.recordset[0].id, user);
         }
       } catch (e) {
         console.error('DB login find error:', e);
