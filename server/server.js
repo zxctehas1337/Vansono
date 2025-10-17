@@ -1,9 +1,12 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const nodemailer = require('nodemailer');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
+const { sendVerificationCode } = require('../src/server/emailService');
+const prisma = require('../src/server/database');
+const { searchUsers } = require('../src/server/userService');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -20,16 +23,7 @@ const onlineUsers = new Map(); // socketId -> userId
 const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
 
-// Настройка email (в продакшене использовать настоящий SMTP)
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: 'your-email@gmail.com', // Заменить на реальный email
-    pass: 'your-app-password' // Заменить на app password
-  }
-});
+// Email now handled via src/server/emailService using SMTP envs
 
 // Socket.IO обработчики
 io.on('connection', (socket) => {
@@ -39,16 +33,26 @@ io.on('connection', (socket) => {
   socket.on('register:request', async (data) => {
     const { email, name, username } = data;
     
-    // Проверка уникальности email и username
+    // Проверка уникальности email и username (первично по памяти, затем в БД)
     const emailExists = Array.from(users.values()).some(u => u.email === email);
     const usernameExists = Array.from(users.values()).some(u => u.username === username);
+    let dbEmailExists = false;
+    let dbUsernameExists = false;
+    try {
+      const emailUser = await prisma.user.findUnique({ where: { email } });
+      const usernameUser = await prisma.user.findUnique({ where: { username } });
+      dbEmailExists = Boolean(emailUser);
+      dbUsernameExists = Boolean(usernameUser);
+    } catch (e) {
+      console.error('DB check error:', e);
+    }
     
-    if (emailExists) {
+    if (emailExists || dbEmailExists) {
       socket.emit('register:error', { message: 'Email already registered' });
       return;
     }
     
-    if (usernameExists) {
+    if (usernameExists || dbUsernameExists) {
       socket.emit('register:error', { message: 'Username already taken' });
       return;
     }
@@ -57,26 +61,18 @@ io.on('connection', (socket) => {
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     verificationCodes.set(email, { code, name, username, timestamp: Date.now() });
 
-    // Отправка email (закомментировано для демо)
-    /*
+    // Отправка кода на реальную почту
     try {
-      await transporter.sendMail({
-        from: '"Sontha" <your-email@gmail.com>',
-        to: email,
-        subject: 'Verification Code - Sontha',
-        html: `<h2>Your verification code is: ${code}</h2><p>Valid for 10 minutes.</p>`
-      });
+      await sendVerificationCode(email, code);
     } catch (error) {
       console.error('Email send error:', error);
     }
-    */
 
-    console.log(`Verification code for ${email}: ${code}`);
     socket.emit('register:code-sent', { message: 'Verification code sent to email' });
   });
 
   // Верификация кода
-  socket.on('register:verify', (data) => {
+  socket.on('register:verify', async (data) => {
     const { email, code } = data;
     const storedData = verificationCodes.get(email);
 
@@ -97,14 +93,30 @@ io.on('connection', (socket) => {
       return;
     }
 
-    // Создание пользователя
-    const userId = uuidv4();
+    // Создание пользователя (БД + память)
+    let dbUser;
+    try {
+      dbUser = await prisma.user.create({
+        data: {
+          email,
+          name: storedData.name,
+          username: storedData.username
+        },
+        select: { id: true, email: true, name: true, username: true, createdAt: true }
+      });
+    } catch (e) {
+      console.error('DB create user error:', e);
+      socket.emit('register:error', { message: 'Failed to create user' });
+      return;
+    }
+
+    const userId = dbUser.id || uuidv4();
     users.set(userId, {
       id: userId,
-      email,
-      name: storedData.name,
-      username: storedData.username,
-      createdAt: Date.now()
+      email: dbUser.email,
+      name: dbUser.name,
+      username: dbUser.username,
+      createdAt: dbUser.createdAt ? new Date(dbUser.createdAt).getTime() : Date.now()
     });
 
     verificationCodes.delete(email);
@@ -117,9 +129,28 @@ io.on('connection', (socket) => {
   });
 
   // Логин
-  socket.on('login', (data) => {
+  socket.on('login', async (data) => {
     const { username } = data;
-    const user = Array.from(users.values()).find(u => u.username === username);
+    const normalized = username.startsWith('@') ? username.slice(1) : username;
+    let user = Array.from(users.values()).find(u => u.username === normalized);
+
+    if (!user) {
+      try {
+        const dbUser = await prisma.user.findUnique({ where: { username: normalized } });
+        if (dbUser) {
+          user = {
+            id: dbUser.id,
+            email: dbUser.email,
+            name: dbUser.name,
+            username: dbUser.username,
+            createdAt: new Date(dbUser.createdAt).getTime()
+          };
+          users.set(dbUser.id, user);
+        }
+      } catch (e) {
+        console.error('DB login find error:', e);
+      }
+    }
 
     if (!user) {
       socket.emit('login:error', { message: 'User not found' });
@@ -138,6 +169,24 @@ io.on('connection', (socket) => {
     }));
     socket.emit('users:list', userList);
   });
+  // Поиск пользователей
+  socket.on('search_users', async (query) => {
+    try {
+      const results = await searchUsers(query);
+      const onlineSet = new Set(Array.from(onlineUsers.values()));
+      const enriched = results.map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        online: onlineSet.has(u.id)
+      }));
+      socket.emit('search_results', enriched);
+    } catch (e) {
+      console.error('search_users error:', e);
+      socket.emit('search_results', []);
+    }
+  });
+
 
   // Отправка сообщения
   socket.on('message:send', (data) => {

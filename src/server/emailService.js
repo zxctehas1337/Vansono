@@ -1,16 +1,19 @@
 const nodemailer = require('nodemailer');
 
-const transporter = nodemailer.createTransporter({
-  service: 'gmail',
+// Create transport using SMTP env vars
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: false,
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS
   }
 });
 
 async function sendVerificationCode(email, code) {
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
     subject: 'Sontha - Verification Code',
     html: `

@@ -1,7 +1,7 @@
 const prisma = require('./database');
 
 async function searchUsers(query) {
-  return prisma.user.findMany({
+  const users = await prisma.user.findMany({
     where: {
       OR: [
         { username: { contains: query, mode: 'insensitive' } },
@@ -11,10 +11,11 @@ async function searchUsers(query) {
     select: {
       id: true,
       username: true,
-      name: true,
-      online: true
+      name: true
     }
   });
+  // online computed at socket layer; return raw users
+  return users;
 }
 
 module.exports = { searchUsers };

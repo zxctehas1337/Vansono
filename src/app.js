@@ -228,9 +228,7 @@ function initializeChat() {
   chatScreen.classList.add('active');
 
   // Update current user display
-  currentUserName.textContent = currentUser.name;
-  currentUserUsername.textContent = `@${currentUser.username}`;
-  currentUserAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
+  updateUserDisplay(currentUser);
 }
 
 // Load users list
@@ -255,7 +253,7 @@ socket.on('users:list', (users) => {
             <span class="chat-item-name">${user.name}</span>
             <span class="chat-item-time">now</span>
           </div>
-          <div class="chat-item-preview">@${user.username}</div>
+          <div class="chat-item-preview">${user.username.startsWith('@') ? user.username : `@${user.username}`}</div>
         </div>
       `;
 
@@ -557,12 +555,21 @@ console.log('Sontha messenger initialized');
 // Add to your existing socket events
 const searchInput = document.getElementById('search-input');
 
-searchInput.addEventListener('input', debounce(async (e) => {
-  const query = e.target.value.trim();
-  if (query.length < 2) return;
-  
-  socket.emit('search_users', query);
-}), 300);
+function debounce(fn, delay = 300) {
+  let timeoutId;
+  return function(...args) {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
+if (searchInput) {
+  searchInput.addEventListener('input', debounce((e) => {
+    const query = e.target.value.trim();
+    if (query.length < 2) return;
+    socket.emit('search_users', query);
+  }, 300));
+}
 
 socket.on('search_results', (users) => {
   updateUsersList(users);
