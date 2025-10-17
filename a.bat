@@ -24,15 +24,10 @@ goto parse_args
 :execute
 echo Adding files...
 git add .
-
+git push origin master
 echo Commit with message: "%commit_message%"
 git commit -m "%commit_message%"
-
-if "%auto_push%"=="true" (
-    echo Pushing to origin master...
-    git push origin master
-)
-
+git push origin master
 cmd /c cls
 chcp 65001 >nul
 endlocal
