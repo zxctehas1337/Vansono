@@ -37,14 +37,11 @@ io.on('connection', (socket) => {
     const emailExists = Array.from(users.values()).some(u => u.email === email);
     const usernameExists = Array.from(users.values()).some(u => u.username === username);
     let dbEmailExists = false;
-    let dbUsernameExists = false;
     try {
       const emailUser = await prisma.user.findUnique({ where: { email } });
-      const usernameUser = await prisma.user.findUnique({ where: { username } });
       dbEmailExists = Boolean(emailUser);
-      dbUsernameExists = Boolean(usernameUser);
     } catch (e) {
-      console.error('DB check error:', e);
+      console.error('DB email check error:', e);
     }
 
     if (emailExists || dbEmailExists) {
@@ -52,7 +49,7 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (usernameExists || dbUsernameExists) {
+    if (usernameExists) {
       socket.emit('register:error', { message: 'Username already taken' });
       return;
     }
@@ -136,13 +133,14 @@ io.on('connection', (socket) => {
 
     if (!user) {
       try {
-        const dbUser = await prisma.user.findUnique({ where: { username: normalized } });
+        // Try to find by email if username column doesn't exist
+        const dbUser = await prisma.user.findUnique({ where: { email: normalized } });
         if (dbUser) {
           user = {
             id: dbUser.id,
             email: dbUser.email,
             name: dbUser.name,
-            username: dbUser.username,
+            username: dbUser.username || normalized,
             createdAt: dbUser.createdAt ? new Date(dbUser.createdAt).getTime() : Date.now()
           };
           users.set(dbUser.id, user);
