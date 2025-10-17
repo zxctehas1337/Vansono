@@ -1,35 +1,28 @@
-const fetch = require('node-fetch');
+const { Resend } = require('resend');
 
 const RESEND_API_KEY = process.env.TOKEN;
 const RESEND_FROM = process.env.RESEND_FROM || 'Sontha <onboarding@resend.dev>';
+const resendClient = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 async function sendEmail(mailOptions) {
-  if (!RESEND_API_KEY || !RESEND_FROM) {
+  if (!resendClient || !RESEND_FROM) {
     throw new Error('Resend API key or sender address not configured. Please set TOKEN and RESEND_FROM in config.env');
   }
-
   const payload = {
     from: RESEND_FROM,
     to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
     subject: mailOptions.subject,
-    html: mailOptions.html
+    html: mailOptions.html,
   };
-
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Resend API error: ${res.status} ${text}`);
+  try {
+    const result = await resendClient.emails.send(payload);
+    if (result.error) {
+      throw new Error(`Resend API error: ${JSON.stringify(result.error)}`);
+    }
+    return true;
+  } catch (error) {
+    throw new Error(`Resend API send failed: ${error.message}`);
   }
-
-  return true;
 }
 
 async function sendVerificationCode(email, code) {
