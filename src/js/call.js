@@ -247,7 +247,7 @@ cameraBtn.addEventListener('click', () => {
     isCameraOn = !isCameraOn;
     const videoTrack = window.Core.localStream.getVideoTracks()[0];
     if (videoTrack) {
-      videoTrack.enabled = !isCameraOn;
+      videoTrack.enabled = isCameraOn;
       cameraBtn.style.opacity = isCameraOn ? '1' : '0.5';
       localVideo.style.display = isCameraOn ? 'block' : 'none';
     }
