@@ -103,7 +103,7 @@ io.on('connection', (socket) => {
       }));
 
     io.emit('users:list', userList);
-    console.log('', socket.id);
+    console.log('')
   });
 });
 
@@ -327,7 +327,7 @@ io.on('connection', (socket) => {
       online: Array.from(onlineUsers.values()).includes(u.id)
     }));
     io.emit('users:list', userListOnDisconnect);
-    console.log('', socket.id);
+    console.log('')
   });
 });
 
