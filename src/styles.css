@@ -749,6 +749,107 @@ body {
   background: #dc2626;
 }
 
+/* Audio visualization */
+.audio-visualization {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.audio-circle {
+  position: absolute;
+  border-radius: 50%;
+  border: 3px solid var(--success);
+  opacity: 0;
+  transition: all 0.3s ease;
+}
+
+#local-audio-circle {
+  top: 24px;
+  right: 24px;
+  width: 240px;
+  height: 180px;
+  border-color: var(--accent-primary);
+}
+
+#remote-audio-circle {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  border-color: var(--success);
+}
+
+.audio-circle.pulsing {
+  opacity: 0.8;
+  animation: audioPulse 0.5s ease-in-out infinite alternate;
+}
+
+@keyframes audioPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  100% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* Incoming call controls */
+.incoming-call-controls {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 24px;
+  animation: slideUp 0.5s ease;
+}
+
+.call-control-btn.accept {
+  background: var(--success);
+  color: white;
+}
+
+.call-control-btn.accept:hover {
+  background: #059669;
+  transform: scale(1.1);
+}
+
+.call-control-btn.decline {
+  background: var(--error);
+  color: white;
+}
+
+.call-control-btn.decline:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Call status animations */
+.call-info {
+  animation: fadeIn 0.5s ease;
+}
+
+.call-info.ringing {
+  animation: callRinging 1s ease-in-out infinite;
+}
+
+@keyframes callRinging {
+  0%, 100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.05);
+  }
+}
+
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 8px;

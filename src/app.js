@@ -4,6 +4,7 @@ let currentUser = null;
 let currentChatUser = null;
 let peer = null;
 let localStream = null;
+let currentCallData = null;
 
 // DOM Elements
 const authScreen = document.getElementById('auth-screen');
@@ -84,6 +85,16 @@ const callStatus = document.getElementById('call-status');
 const localVideo = document.getElementById('local-video');
 const remoteVideo = document.getElementById('remote-video');
 
+// Call control elements
+const incomingCallControls = document.getElementById('incoming-call-controls');
+const activeCallControls = document.getElementById('active-call-controls');
+const acceptCallBtn = document.getElementById('accept-call-btn');
+const declineCallBtn = document.getElementById('decline-call-btn');
+
+// Audio visualization elements
+const localAudioCircle = document.getElementById('local-audio-circle');
+const remoteAudioCircle = document.getElementById('remote-audio-circle');
+
 // ===== AUTH LOGIC =====
 
 // Show error message
@@ -140,6 +151,16 @@ loginBtn.addEventListener('click', () => {
 socket.on('login:success', (data) => {
   if (data.token) {
     localStorage.setItem('authToken', data.token);
+    localStorage.setItem('userData', JSON.stringify(data.user));
+  }
+  currentUser = data.user;
+  initializeChat();
+});
+
+socket.on('register:success', (data) => {
+  if (data.token) {
+    localStorage.setItem('authToken', data.token);
+    localStorage.setItem('userData', JSON.stringify(data.user));
   }
   currentUser = data.user;
   initializeChat();
@@ -147,8 +168,19 @@ socket.on('login:success', (data) => {
 
 window.addEventListener('load', () => {
   const token = localStorage.getItem('authToken');
-  if (token) {
-    socket.emit('auth:token', token);
+  const userData = localStorage.getItem('userData');
+  
+  if (token && userData) {
+    try {
+      const user = JSON.parse(userData);
+      currentUser = user;
+      socket.emit('auth:token', token);
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('userData');
+      requestCaptcha(false);
+    }
   } else {
     // Ensure captcha is ready on initial load
     requestCaptcha(false);
@@ -157,6 +189,7 @@ window.addEventListener('load', () => {
 
 socket.on('auth:success', (data) => {
   currentUser = data.user;
+  localStorage.setItem('userData', JSON.stringify(data.user));
   authScreen.classList.remove('active');
   chatScreen.classList.add('active');
   updateUserDisplay(data.user);
@@ -164,6 +197,7 @@ socket.on('auth:success', (data) => {
 
 socket.on('auth:error', () => {
   localStorage.removeItem('authToken');
+  localStorage.removeItem('userData');
   authScreen.classList.add('active');
   chatScreen.classList.remove('active');
   requestCaptcha(false);
@@ -365,15 +399,18 @@ async function initiateCall(video) {
     peer.on('signal', (signal) => {
       socket.emit('call:initiate', {
         to: currentChatUser.id,
-        signal
+        signal,
+        callType: video ? 'video' : 'voice'
       });
     });
 
     peer.on('stream', (remoteStream) => {
       remoteVideo.srcObject = remoteStream;
+      startAudioVisualization(remoteStream, remoteAudioCircle);
     });
 
-    showCallScreen(currentChatUser.name, 'Calling...');
+    showCallScreen(currentChatUser.name, 'Calling...', false);
+    startAudioVisualization(localStream, localAudioCircle);
   } catch (error) {
     console.error('Error accessing media devices:', error);
     alert('Unable to access camera/microphone');
@@ -382,23 +419,38 @@ async function initiateCall(video) {
 
 // Incoming call
 socket.on('call:incoming', (data) => {
-  const accept = confirm(`Incoming call from ${data.caller.name}`);
-  
-  if (accept) {
-    answerCall(data.signal, data.caller);
-  } else {
-    socket.emit('call:end', { to: data.from });
-  }
+  showIncomingCall(data.caller.name, data.callType);
+  currentCallData = data;
 });
 
-async function answerCall(signal, caller) {
+function showIncomingCall(callerName, callType) {
+  chatScreen.classList.remove('active');
+  callScreen.classList.add('active');
+  
+  callUserName.textContent = callerName;
+  callAvatar.textContent = callerName.charAt(0).toUpperCase();
+  callStatus.textContent = `Incoming ${callType} call...`;
+  
+  // Show incoming call controls
+  incomingCallControls.style.display = 'flex';
+  activeCallControls.style.display = 'none';
+  
+  // Add ringing animation
+  document.querySelector('.call-info').classList.add('ringing');
+}
+
+// Accept call
+acceptCallBtn.addEventListener('click', async () => {
+  if (!currentCallData) return;
+  
   try {
     localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: true
+      video: currentCallData.callType === 'video'
     });
 
     localVideo.srcObject = localStream;
+    if (currentCallData.callType !== 'video') localVideo.style.display = 'none';
 
     peer = new SimplePeer({
       initiator: false,
@@ -407,22 +459,51 @@ async function answerCall(signal, caller) {
     });
 
     peer.on('signal', (answerSignal) => {
-      socket.emit('call:answer', {
-        to: caller.id,
+      socket.emit('call:accept', {
+        to: currentCallData.from,
         signal: answerSignal
       });
     });
 
     peer.on('stream', (remoteStream) => {
       remoteVideo.srcObject = remoteStream;
+      startAudioVisualization(remoteStream, remoteAudioCircle);
     });
 
-    peer.signal(signal);
-    showCallScreen(caller.name, 'Connected');
+    peer.signal(currentCallData.signal);
+    
+    // Switch to active call controls
+    incomingCallControls.style.display = 'none';
+    activeCallControls.style.display = 'flex';
+    document.querySelector('.call-info').classList.remove('ringing');
+    
+    callStatus.textContent = 'Connected';
+    startAudioVisualization(localStream, localAudioCircle);
   } catch (error) {
     console.error('Error answering call:', error);
+    endCall();
   }
-}
+});
+
+// Decline call
+declineCallBtn.addEventListener('click', () => {
+  if (currentCallData) {
+    socket.emit('call:decline', { to: currentCallData.from });
+  }
+  endCall();
+});
+
+// Call accepted
+socket.on('call:accepted', (data) => {
+  peer.signal(data.signal);
+  callStatus.textContent = 'Connected';
+});
+
+// Call declined
+socket.on('call:declined', () => {
+  callStatus.textContent = 'Call declined';
+  setTimeout(() => endCall(), 2000);
+});
 
 // Call answered
 socket.on('call:answered', (data) => {
@@ -455,6 +536,16 @@ function endCall() {
 
   localVideo.srcObject = null;
   remoteVideo.srcObject = null;
+  
+  // Stop audio visualization
+  stopAudioVisualization();
+
+  // Reset UI
+  incomingCallControls.style.display = 'none';
+  activeCallControls.style.display = 'flex';
+  document.querySelector('.call-info').classList.remove('ringing');
+  
+  currentCallData = null;
 
   callScreen.classList.remove('active');
   chatScreen.classList.add('active');
@@ -484,13 +575,84 @@ cameraBtn.addEventListener('click', () => {
   }
 });
 
-function showCallScreen(name, status) {
+function showCallScreen(name, status, showControls = true) {
   chatScreen.classList.remove('active');
   callScreen.classList.add('active');
   
   callUserName.textContent = name;
   callAvatar.textContent = name.charAt(0).toUpperCase();
   callStatus.textContent = status;
+  
+  if (showControls) {
+    incomingCallControls.style.display = 'none';
+    activeCallControls.style.display = 'flex';
+  }
+}
+
+// Audio visualization
+let audioContext = null;
+let localAnalyser = null;
+let remoteAnalyser = null;
+let animationId = null;
+
+function startAudioVisualization(stream, circleElement) {
+  if (!audioContext) {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  
+  const source = audioContext.createMediaStreamSource(stream);
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  source.connect(analyser);
+  
+  if (circleElement === localAudioCircle) {
+    localAnalyser = analyser;
+  } else {
+    remoteAnalyser = analyser;
+  }
+  
+  if (!animationId) {
+    animateAudioVisualization();
+  }
+}
+
+function stopAudioVisualization() {
+  if (animationId) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+  
+  localAnalyser = null;
+  remoteAnalyser = null;
+  
+  localAudioCircle.classList.remove('pulsing');
+  remoteAudioCircle.classList.remove('pulsing');
+}
+
+function animateAudioVisualization() {
+  const bufferLength = 256;
+  const dataArray = new Uint8Array(bufferLength);
+  
+  function updateCircle(analyser, circle) {
+    if (!analyser || !circle) return;
+    
+    analyser.getByteFrequencyData(dataArray);
+    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
+    const intensity = average / 255;
+    
+    if (intensity > 0.1) {
+      circle.classList.add('pulsing');
+      circle.style.opacity = Math.min(0.8, intensity * 2);
+    } else {
+      circle.classList.remove('pulsing');
+      circle.style.opacity = 0;
+    }
+  }
+  
+  updateCircle(localAnalyser, localAudioCircle);
+  updateCircle(remoteAnalyser, remoteAudioCircle);
+  
+  animationId = requestAnimationFrame(animateAudioVisualization);
 }
 
 // ===== UTILITIES =====

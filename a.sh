@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Цвет текста (зелёный)
+echo -e "\e[32m"
+
+# Инициализация переменных
+commit_message="Автоматический коммит"
+auto_push=false
+
+# Обработка аргументов
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -y)
+            auto_push=true
+            shift
+            ;;
+        -m)
+            shift
+            commit_message="$1"
+            shift
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Выполнение команд
+echo "Adding files..."
+git add .
+
+echo "Committing with message: \"$commit_message\""
+git commit -m "$commit_message"
+
+if [ "$auto_push" = true ]; then
+    echo "Pushing to origin master..."
+    git push origin master
+fi
+
+# Очистка экрана
+clear
+
+# Сброс цвета
+echo -e "\e[0m"

@@ -74,8 +74,10 @@ io.on('connection', (socket) => {
     captchaChallenges.delete(socket.id);
     onlineUsers.set(socket.id, userId);
 
+    const token = jwt.sign({ userId }, JWT_SECRET, { expiresIn: '7d' });
     socket.emit('register:success', {
       user: users.get(userId),
+      token,
       message: 'Registration successful'
     });
     // Broadcast updated users list after registration
@@ -239,7 +241,7 @@ io.on('connection', (socket) => {
 
   // WebRTC сигналинг
   socket.on('call:initiate', (data) => {
-    const { to, signal } = data;
+    const { to, signal, callType } = data;
     const fromUserId = onlineUsers.get(socket.id);
 
     const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === to);
@@ -247,8 +249,29 @@ io.on('connection', (socket) => {
       io.to(recipientSocket[0]).emit('call:incoming', {
         from: fromUserId,
         signal,
+        callType: callType || 'voice',
         caller: users.get(fromUserId)
       });
+    }
+  });
+
+  socket.on('call:accept', (data) => {
+    const { to, signal } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+    const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === to);
+    if (recipientSocket) {
+      io.to(recipientSocket[0]).emit('call:accepted', { 
+        signal,
+        caller: users.get(fromUserId)
+      });
+    }
+  });
+
+  socket.on('call:decline', (data) => {
+    const { to } = data;
+    const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === to);
+    if (recipientSocket) {
+      io.to(recipientSocket[0]).emit('call:declined');
     }
   });
 
