@@ -70,14 +70,29 @@ function handleRouting() {
 // Show chats list
 function showChatsList() {
   console.log('showChatsList called, chatScreen active:', chatScreen && chatScreen.classList.contains('active'));
+  console.log('DOM elements check:', {
+    chatScreen: !!chatScreen,
+    chatContainer: !!chatContainer,
+    emptyState: !!emptyState,
+    chatsList: !!chatsList
+  });
   
   if (chatScreen && chatScreen.classList.contains('active')) {
     // Show the empty state and hide any open chat
-    if (chatContainer) chatContainer.style.display = 'none';
-    if (emptyState) emptyState.style.display = 'block';
+    if (chatContainer) {
+      chatContainer.style.display = 'none';
+      console.log('Chat container hidden');
+    }
+    if (emptyState) {
+      emptyState.style.display = 'block';
+      console.log('Empty state shown');
+    }
     
     // Ensure chats list is visible
-    if (chatsList) chatsList.style.display = 'block';
+    if (chatsList) {
+      chatsList.style.display = 'block';
+      console.log('Chats list shown');
+    }
     
     // Clear active chat selection
     document.querySelectorAll('.chat-item').forEach(item => {
@@ -85,6 +100,8 @@ function showChatsList() {
     });
     
     console.log('Chat list view activated');
+  } else {
+    console.log('Chat screen not active, skipping DOM manipulation');
   }
   
   // Update URL
@@ -219,6 +236,12 @@ function updateUserDisplay(user) {
 // Initialize chat
 function initializeChat() {
   console.log('initializeChat called, currentUser:', currentUser);
+  console.log('DOM elements before switching:', {
+    authScreen: !!authScreen,
+    chatScreen: !!chatScreen,
+    authScreenActive: authScreen && authScreen.classList.contains('active'),
+    chatScreenActive: chatScreen && chatScreen.classList.contains('active')
+  });
   
   // Transition from auth to chat screen
   if (authScreen) {
@@ -230,6 +253,11 @@ function initializeChat() {
     chatScreen.classList.add('active');
     console.log('Chat screen activated');
   }
+  
+  console.log('DOM elements after switching:', {
+    authScreenActive: authScreen && authScreen.classList.contains('active'),
+    chatScreenActive: chatScreen && chatScreen.classList.contains('active')
+  });
   
   // Update user display
   if (currentUser) {
