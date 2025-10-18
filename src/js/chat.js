@@ -50,7 +50,7 @@ function sendMessage() {
 function displayMessage(message) {
   const isSent = message.from === window.Core.currentUser.id;
   const messageEl = document.createElement('div');
-  messageEl.className = `message ${isSent ? 'sent' : ''} ${message.deleted ? 'deleted' : ''} ${message.isCallHistory ? 'call-history' : ''} ${message.type === 'voice' ? 'voice-message' : ''}`;
+  messageEl.className = `message ${isSent ? 'sent' : ''} ${message.deleted ? 'deleted' : ''} ${message.type === 'voice' ? 'voice-message' : ''}`;
   messageEl.dataset.messageId = message.id;
 
   const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
@@ -102,57 +102,6 @@ function displayMessage(message) {
     return;
   }
 
-  // Special handling for call history messages
-  if (message.isCallHistory) {
-    const callType = message.text.includes('Voice') ? 'voice' : 'video';
-    const status = message.text.includes('accepted') ? 'accepted' : 
-                  message.text.includes('rejected') ? 'rejected' : 'missed';
-    
-    const callIcon = callType === 'voice' ? 
-      `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M10 1C6.13 1 3 4.13 3 8V14C3 17.87 6.13 21 10 21C13.87 21 17 17.87 17 14V8C17 4.13 13.87 1 10 1Z" stroke="currentColor" stroke-width="2"/>
-        <path d="M7 7V15M13 7V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <path d="M10 7V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>` :
-      `<svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="2" y="6" width="16" height="12" rx="2" stroke="currentColor" stroke-width="2"/>
-        <path d="M18 10L22 7V17L18 14" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-      </svg>`;
-    
-    const statusIcon = status === 'accepted' ?
-      `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M6 8L8 10L10 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>` :
-      status === 'rejected' ?
-      `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M6 6L10 10M10 6L6 10" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>` :
-      `<svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M8 2V6M8 10V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-        <path d="M2 8H6M10 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-      </svg>`;
-    
-    const statusColor = status === 'accepted' ? 'var(--success)' : 
-                       status === 'rejected' ? 'var(--error)' : 'var(--warning)';
-    
-    messageEl.innerHTML = `
-      <div class="call-history-message">
-        <div class="call-history-icon" style="color: ${statusColor}">
-          ${callIcon}
-        </div>
-        <div class="call-history-content">
-          <div class="call-history-text">${message.text}</div>
-          <div class="call-history-time">${time}</div>
-        </div>
-        <div class="call-history-status" style="color: ${statusColor}">
-          ${statusIcon}
-        </div>
-      </div>
-    `;
-    
-    document.getElementById('messages-container').appendChild(messageEl);
-    return;
-  }
 
   // Read receipt icons
   let readReceipts = '';

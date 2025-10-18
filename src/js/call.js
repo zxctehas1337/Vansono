@@ -23,43 +23,11 @@ const declineCallBtn = document.getElementById('decline-call-btn');
 let isMuted = false;
 let isCameraOn = true;
 
-// ===== CALL HISTORY FUNCTIONS =====
-
-function createCallHistoryMessage(callType, status, duration = null, isInitiator = false) {
-  const timestamp = Date.now();
-  let messageText = '';
-  
-  if (status === 'accepted') {
-    if (duration) {
-      const minutes = Math.floor(duration / 60);
-      const seconds = Math.floor(duration % 60);
-      const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-      messageText = `${callType} call accepted - Duration: ${durationText}`;
-    } else {
-      messageText = `${callType} call accepted`;
-    }
-  } else if (status === 'rejected') {
-    messageText = `${callType} call rejected`;
-  } else if (status === 'missed') {
-    messageText = `Missed ${callType} call`;
-  }
-  
-  return {
-    id: `call_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
-    from: isInitiator ? window.Core.currentUser.id : window.Core.currentChatUser.id,
-    to: isInitiator ? window.Core.currentChatUser.id : window.Core.currentUser.id,
-    text: messageText,
-    timestamp: timestamp,
-    isCallHistory: true
-  };
-}
 
 // ===== CALL INITIATION =====
 
 async function initiateCall(video) {
   try {
-    // Reset call history flag for new call
-    window.Core.callHistoryAdded = false;
     
     // Check if SimplePeer is available
     if (typeof SimplePeer === 'undefined') {
@@ -115,8 +83,6 @@ window.Core.socket.on('call:incoming', (data) => {
   showIncomingCall(data.caller.name, data.callType);
   window.Core.currentCallData = data;
   
-  // Reset call history flag for new incoming call
-  window.Core.callHistoryAdded = false;
 });
 
 function showIncomingCall(callerName, callType) {
@@ -197,17 +163,6 @@ declineCallBtn.addEventListener('click', () => {
   if (window.Core.currentCallData) {
     window.Core.socket.emit('call:decline', { to: window.Core.currentCallData.from });
     
-    // Create call history message for rejected call
-    const callHistoryMessage = createCallHistoryMessage(window.Core.currentCallData.callType, 'rejected');
-    window.Chat.displayMessage(callHistoryMessage);
-    window.Core.scrollToBottom();
-    
-    // Send call history message to server
-    window.Core.socket.emit('message:send', {
-      to: window.Core.currentChatUser.id,
-      text: callHistoryMessage.text,
-      isCallHistory: true
-    });
   }
   endCall();
 });
@@ -224,17 +179,6 @@ window.Core.socket.on('call:accepted', (data) => {
 window.Core.socket.on('call:declined', () => {
   callStatus.textContent = 'Call declined';
   
-  // Create call history message for declined call
-  const callHistoryMessage = createCallHistoryMessage('voice', 'rejected');
-  window.Chat.displayMessage(callHistoryMessage);
-  window.Core.scrollToBottom();
-  
-  // Send call history message to server
-  window.Core.socket.emit('message:send', {
-    to: window.Core.currentChatUser.id,
-    text: callHistoryMessage.text,
-    isCallHistory: true
-  });
   
   setTimeout(() => endCall(), 2000);
 });
@@ -258,34 +202,6 @@ window.Core.socket.on('call:ended', () => {
 });
 
 function endCall() {
-  // Calculate call duration if call was active and avoid duplicate messages
-  if (window.Core.callStartTime && window.Core.currentCallData && !window.Core.callHistoryAdded) {
-    window.Core.callEndTime = Date.now();
-    window.Core.callDuration = Math.floor((window.Core.callEndTime - window.Core.callStartTime) / 1000);
-    
-    // Determine if current user initiated the call
-    const isInitiator = !window.Core.currentCallData.from || window.Core.currentCallData.from === window.Core.currentUser.id;
-    
-    // Create call history message for ended call
-    const callHistoryMessage = createCallHistoryMessage(
-      window.Core.currentCallData.callType || 'voice', 
-      'accepted', 
-      window.Core.callDuration,
-      isInitiator
-    );
-    window.Chat.displayMessage(callHistoryMessage);
-    window.Core.scrollToBottom();
-    
-    // Send call history message to server
-    window.Core.socket.emit('message:send', {
-      to: window.Core.currentChatUser.id,
-      text: callHistoryMessage.text,
-      isCallHistory: true
-    });
-    
-    // Mark that call history has been added to prevent duplication
-    window.Core.callHistoryAdded = true;
-  }
   
   if (window.Core.peer) {
     window.Core.peer.destroy();
@@ -313,7 +229,6 @@ function endCall() {
   window.Core.callStartTime = null;
   window.Core.callEndTime = null;
   window.Core.callDuration = null;
-  window.Core.callHistoryAdded = false;
 
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('chat-screen').classList.add('active');
@@ -407,7 +322,6 @@ window.Call = {
   showIncomingCall,
   endCall,
   showCallScreen,
-  createCallHistoryMessage,
   playNotificationSound,
   initializeCall
 };

@@ -372,7 +372,7 @@ io.on('connection', (socket) => {
 
   // Отправка сообщения
   socket.on('message:send', async (data) => {
-    const { to, text, isCallHistory, replyTo, type, audioUrl, audioData, duration } = data;
+    const { to, text, replyTo, type, audioUrl, audioData, duration } = data;
     const fromUserId = onlineUsers.get(socket.id);
 
     if (!fromUserId) return;
@@ -386,7 +386,6 @@ io.on('connection', (socket) => {
       to,
       text,
       timestamp: Date.now(),
-      isCallHistory: isCallHistory || false,
       edited: false,
       deleted: false,
       replyTo: replyTo || null,

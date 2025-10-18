@@ -2837,57 +2837,6 @@ textarea:focus {
   margin-bottom: 0;
 }
 
-/* Call History Messages */
-.call-history-message {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  background: var(--bg-tertiary);
-  border-radius: 20px;
-  border: 1px solid var(--border-color);
-  margin: 8px 0;
-  max-width: 300px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.call-history-icon {
-  width: 40px;
-  height: 40px;
-  background: var(--bg-secondary);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.call-history-content {
-  flex: 1;
-  min-width: 0;
-}
-
-.call-history-text {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.call-history-time {
-  font-size: 12px;
-  color: var(--text-tertiary);
-}
-
-.call-history-status {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
 
 /* Notifications */
 .notification {

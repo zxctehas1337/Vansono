@@ -683,12 +683,7 @@ async function sendVoiceMessage() {
       read: false
     };
     
-    // Only save locally for the current chat (remove duplication)
-    const messages = JSON.parse(localStorage.getItem(`messages_${window.Core.currentChatUser.id}`) || '[]');
-    messages.push(voiceMessage);
-    localStorage.setItem(`messages_${window.Core.currentChatUser.id}`, JSON.stringify(messages));
-    
-    // Send via socket for real-time delivery
+    // Send via socket for real-time delivery - server will handle broadcasting back to both users
     if (window.Core.socket && window.Core.socket.connected) {
       window.Core.socket.emit('message:send', {
         to: window.Core.currentChatUser.id,
@@ -698,9 +693,6 @@ async function sendVoiceMessage() {
         duration: voiceMessage.duration
       });
     }
-    
-    // Display voice message
-    displayVoiceMessage(voiceMessage);
     
     // Clean up blob URL
     URL.revokeObjectURL(audioUrl);
