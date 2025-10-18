@@ -1,0 +1,170 @@
+/* Video Call Styles */
+
+/* Call Screen */
+#call-screen {
+  position: relative;
+  background: var(--bg-primary);
+}
+
+.call-container {
+  width: 100%;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--bg-secondary);
+  transition: all 0.3s ease;
+}
+
+.local-video {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  width: 240px;
+  height: 180px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: var(--bg-tertiary);
+  border: 3px solid var(--border-color);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  border: 2px solid var(--accent-primary);
+  transition: all 0.3s ease;
+}
+
+.local-video:hover {
+  border-color: var(--accent-secondary);
+}
+
+.call-info {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  animation: fadeIn 0.5s ease;
+}
+
+.call-info h2 {
+  margin: 16px 0 8px;
+  font-size: 28px;
+}
+
+.call-info span {
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+.call-controls {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 16px;
+  animation: slideUp 0.5s ease;
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.call-control-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.call-control-btn:hover {
+  transform: scale(1.1);
+  background: var(--bg-tertiary);
+}
+
+.call-control-btn:active {
+  transform: scale(0.95);
+}
+
+.call-control-btn.end {
+  background: var(--error);
+}
+
+.call-control-btn.end:hover {
+  background: #dc2626;
+}
+
+/* Incoming call controls */
+.incoming-call-controls {
+  position: absolute;
+  bottom: 48px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 24px;
+  animation: slideUp 0.5s ease;
+}
+
+.call-control-btn.accept {
+  background: var(--success);
+  color: white;
+}
+
+.call-control-btn.accept:hover {
+  background: #059669;
+  transform: scale(1.1);
+}
+
+.call-control-btn.decline {
+  background: var(--error);
+  color: white;
+}
+
+.call-control-btn.decline:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Call status animations */
+.call-info.ringing {
+  animation: callRinging 1s ease-in-out infinite;
+}
+
+/* Camera off state */
+.camera-off {
+  background-color: var(--error) !important;
+  opacity: 0.7 !important;
+}
+
+.camera-off svg {
+  filter: brightness(0) invert(1);
+}
+
+/* Call screen improvements */
+.call-controls {
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.call-control-btn {
+  transition: all 0.3s ease;
+}
+
+.call-control-btn:hover {
+  transform: scale(1.1);
+}
+
+.call-control-btn:active {
+  transform: scale(0.95);
+}

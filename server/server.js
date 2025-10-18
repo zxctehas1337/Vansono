@@ -7,8 +7,12 @@ require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const axios = require('axios');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
+const VK_SECURITY_KEY = process.env.SECUTIRY_KEY || 'z0ZOVq5O9qoaDPbp0hUj';
+const VK_SERVICE_KEY = process.env.SERVICE_KEY || 'e4c95c50e4c95c50e4c95c50eee7f29bf9ee4c9e4c95508c3a95cf1529b25dcc145eec';
+const VK_APP_ID = process.env.ID || '54249385';
 
 const app = express();
 const server = http.createServer(app);
@@ -50,8 +54,12 @@ async function initializeDatabase() {
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         username VARCHAR(255) NOT NULL UNIQUE,
-        password_hash VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        password_hash VARCHAR(255),
+        provider VARCHAR(50),
+        provider_id VARCHAR(255),
+        avatar_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(provider, provider_id)
       )
     `);
     
@@ -111,6 +119,9 @@ async function loadUsersFromDatabase() {
         name: user.name,
         username: user.username,
         passwordHash: user.password_hash,
+        provider: user.provider,
+        providerId: user.provider_id,
+        avatarUrl: user.avatar_url,
         createdAt: user.created_at
       });
     });
@@ -125,6 +136,64 @@ async function loadUsersFromDatabase() {
 initializeDatabase().then(() => {
   loadUsersFromDatabase();
 });
+
+// VK API helper functions
+async function verifyVKToken(accessToken) {
+  try {
+    const response = await axios.get('https://api.vk.com/method/users.get', {
+      params: {
+        access_token: accessToken,
+        fields: 'id,first_name,last_name,screen_name,photo_200',
+        v: '5.131'
+      }
+    });
+
+    if (response.data.error) {
+      throw new Error(response.data.error.error_msg);
+    }
+
+    return response.data.response[0];
+  } catch (error) {
+    console.error('VK API error:', error);
+    throw error;
+  }
+}
+
+async function getOrCreateSocialUser(provider, providerId, userInfo) {
+  try {
+    // Check if user already exists
+    const existingUser = await pool.query(
+      'SELECT * FROM users WHERE provider = $1 AND provider_id = $2',
+      [provider, providerId]
+    );
+
+    if (existingUser.rows.length > 0) {
+      return existingUser.rows[0];
+    }
+
+    // Create new user
+    const userId = uuidv4();
+    const username = userInfo.screen_name || `user_${providerId}`;
+    const name = `${userInfo.first_name} ${userInfo.last_name}`.trim();
+
+    await pool.query(
+      'INSERT INTO users (id, name, username, password_hash, provider, provider_id, avatar_url) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+      [userId, name, username, null, provider, providerId, userInfo.photo_200]
+    );
+
+    return {
+      id: userId,
+      name,
+      username,
+      provider,
+      provider_id: providerId,
+      avatar_url: userInfo.photo_200
+    };
+  } catch (error) {
+    console.error('Error creating social user:', error);
+    throw error;
+  }
+}
 
 // Function to get or create a private chat between two users
 async function getOrCreatePrivateChat(user1Id, user2Id) {
@@ -209,10 +278,10 @@ io.on('connection', (socket) => {
     const passwordHash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
     
-    // Save to database
+    // Save to database (only for non-social users)
     await pool.query(
-      'INSERT INTO users (id, name, username, password_hash) VALUES ($1, $2, $3, $4)',
-      [userId, name, normalized, passwordHash]
+      'INSERT INTO users (id, name, username, password_hash, provider, provider_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [userId, name, normalized, passwordHash, 'local', null]
     );
     
     // Save to memory for quick access
@@ -221,6 +290,9 @@ io.on('connection', (socket) => {
       name,
       username: normalized,
       passwordHash,
+      provider: 'local',
+      providerId: null,
+      avatarUrl: null,
       createdAt: Date.now()
     });
 
@@ -281,9 +353,9 @@ io.on('connection', (socket) => {
     }
 
     const normalized = username.startsWith('@') ? username.slice(1) : username;
-    const user = Array.from(users.values()).find(u => u.username === normalized);
+    const user = Array.from(users.values()).find(u => u.username === normalized && u.provider === 'local');
     if (!user) {
-      socket.emit('login:error', { message: 'User not found' });
+      socket.emit('login:error', { message: 'User not found or social login required' });
       return;
     }
 
@@ -310,6 +382,66 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Social authentication handler
+  socket.on('social:auth', async (data) => {
+    const { provider, accessToken, userInfo } = data;
+    
+    try {
+      let verifiedUserInfo;
+      
+      if (provider === 'vk') {
+        verifiedUserInfo = await verifyVKToken(accessToken);
+      } else {
+        socket.emit('social:auth:error', { message: 'Unsupported provider' });
+        return;
+      }
+
+      const user = await getOrCreateSocialUser(provider, verifiedUserInfo.id, verifiedUserInfo);
+      
+      // Update in-memory storage
+      users.set(user.id, {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        provider: user.provider,
+        providerId: user.provider_id,
+        avatarUrl: user.avatar_url,
+        createdAt: user.created_at
+      });
+
+      onlineUsers.set(socket.id, user.id);
+      
+      const token = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '7d' });
+      
+      socket.emit('social:auth:success', {
+        user: {
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatarUrl: user.avatar_url,
+          provider: user.provider
+        },
+        token
+      });
+
+      // Send updated user list
+      const userList = Array.from(users.values()).map(u => ({
+        id: u.id,
+        name: u.name,
+        username: u.username,
+        online: Array.from(onlineUsers.values()).includes(u.id)
+      }));
+      socket.emit('users:list', userList);
+      io.emit('users:list', userList);
+      
+    } catch (error) {
+      console.error('Social auth error:', error);
+      socket.emit('social:auth:error', { 
+        message: error.message || 'Authentication failed' 
+      });
+    }
+  });
+
   // Add new handler for token authentication
   socket.on('auth:token', async (token) => {
     try {
@@ -345,14 +477,16 @@ io.on('connection', (socket) => {
     try {
       // Search in database
       const result = await pool.query(
-        'SELECT id, name, username FROM users WHERE LOWER(username) LIKE $1 OR LOWER(name) LIKE $1',
+        'SELECT id, name, username, provider, avatar_url FROM users WHERE LOWER(username) LIKE $1 OR LOWER(name) LIKE $1',
         [`%${q}%`]
       );
       
       const results = result.rows.map(u => ({ 
         id: u.id, 
         name: u.name, 
-        username: u.username 
+        username: u.username,
+        provider: u.provider,
+        avatarUrl: u.avatar_url
       }));
       
       const onlineSet = new Set(Array.from(onlineUsers.values()));
@@ -363,7 +497,13 @@ io.on('connection', (socket) => {
       // Fallback to memory search
       const results = Array.from(users.values())
         .filter(u => (u.username && u.username.toLowerCase().includes(q)) || (u.name && u.name.toLowerCase().includes(q)))
-        .map(u => ({ id: u.id, name: u.name, username: u.username }));
+        .map(u => ({ 
+          id: u.id, 
+          name: u.name, 
+          username: u.username,
+          provider: u.provider,
+          avatarUrl: u.avatarUrl
+        }));
       const onlineSet = new Set(Array.from(onlineUsers.values()));
       const enriched = results.map(u => ({ ...u, online: onlineSet.has(u.id) }));
       socket.emit('search_results', enriched);

@@ -5,11 +5,7 @@
 const registerForm = document.getElementById('register-form');
 const loginForm = document.getElementById('login-form');
 
-// Auth inputs
-const regName = document.getElementById('reg-name');
-const regUsername = document.getElementById('reg-username');
-const regPassword = document.getElementById('reg-password');
-const regCaptcha = document.getElementById('reg-captcha');
+// Auth inputs (only login form now)
 const captchaQuestion = document.getElementById('captcha-question');
 const captchaRefresh = document.getElementById('captcha-refresh');
 
@@ -19,11 +15,9 @@ const loginCaptcha = document.getElementById('login-captcha');
 const captchaQuestionLogin = document.getElementById('captcha-question-login');
 const captchaRefreshLogin = document.getElementById('captcha-refresh-login');
 
-// Auth buttons
-const registerBtn = document.getElementById('register-btn');
+// Auth buttons (only login form now)
 const loginBtn = document.getElementById('login-btn');
 const showLoginLink = document.getElementById('show-login');
-const showRegisterLink = document.getElementById('show-register');
 const backToWelcome = document.getElementById('back-to-welcome');
 
 // Error message
@@ -59,40 +53,7 @@ function switchForm(hideForm, showForm) {
   setTimeout(() => showForm.classList.add('active'), 100);
 }
 
-// Registration (username + password + captcha)
-registerBtn.addEventListener('click', () => {
-  const name = regName.value.trim();
-  let username = regUsername.value.trim();
-  const password = regPassword.value.trim();
-  const captchaAnswer = regCaptcha.value.trim();
-
-  if (!name || !username || !password || !captchaAnswer) {
-    showError('Please fill in all fields');
-    return;
-  }
-
-  // Auto-add @ if not present
-  if (!username.startsWith('@')) {
-    username = '@' + username;
-    regUsername.value = username;
-  }
-
-  window.Core.socket.emit('register', { name, username, password, captchaAnswer });
-});
-
-window.Core.socket.on('register:error', (data) => {
-  showError(data.message);
-});
-
-window.Core.socket.on('register:success', (data) => {
-  if (data.token) {
-    localStorage.setItem('authToken', data.token);
-    localStorage.setItem('userData', JSON.stringify(data.user));
-  }
-  window.Core.currentUser = data.user;
-  window.Core.updateUserDisplay(data.user);
-  window.Core.initializeChat();
-});
+// Registration is now handled by social auth only
 
 // Login (username + password + captcha)
 loginBtn.addEventListener('click', () => {
@@ -174,15 +135,8 @@ showLoginLink.addEventListener('click', (e) => {
   requestCaptcha(true);
 });
 
-showRegisterLink.addEventListener('click', (e) => {
-  e.preventDefault();
-  switchForm(loginForm, registerForm);
-  requestCaptcha(false);
-});
-
 backToWelcome.addEventListener('click', () => {
   switchForm(loginForm, registerForm);
-  requestCaptcha(false);
 });
 
 // ===== LOGOUT FUNCTIONALITY =====
@@ -205,10 +159,6 @@ function logout() {
   document.getElementById('login-form').classList.remove('active');
   
   // Clear form fields
-  document.getElementById('reg-name').value = '';
-  document.getElementById('reg-username').value = '';
-  document.getElementById('reg-password').value = '';
-  document.getElementById('reg-captcha').value = '';
   document.getElementById('login-username').value = '';
   document.getElementById('login-password').value = '';
   document.getElementById('login-captcha').value = '';
@@ -218,23 +168,7 @@ function logout() {
 
 // ===== KEYBOARD NAVIGATION =====
 
-// Handle Enter key in inputs
-regName.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') regUsername.focus();
-});
-
-regUsername.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') regPassword.focus();
-});
-
-regPassword.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') regCaptcha.focus();
-});
-
-regCaptcha.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') registerBtn.click();
-});
-
+// Handle Enter key in login inputs
 loginUsername.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') loginPassword.focus();
 });
