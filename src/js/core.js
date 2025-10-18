@@ -259,6 +259,64 @@ function initializeChat() {
     chatScreenActive: chatScreen && chatScreen.classList.contains('active')
   });
   
+  // Force visibility of chat screen and its components with maximum priority
+  if (chatScreen) {
+    chatScreen.style.cssText = `
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      width: 100% !important;
+      height: 100vh !important;
+      background: #0f0f0f !important;
+      position: relative !important;
+      z-index: 1 !important;
+    `;
+    
+    // Force visibility of chat layout
+    const chatLayout = chatScreen.querySelector('.chat-layout');
+    if (chatLayout) {
+      chatLayout.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        width: 100% !important;
+        height: 100vh !important;
+        flex-direction: row !important;
+      `;
+    }
+    
+    // Force visibility of sidebar
+    const sidebar = chatScreen.querySelector('.sidebar');
+    if (sidebar) {
+      sidebar.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        width: 360px !important;
+        height: 100vh !important;
+        background: #1a1a1a !important;
+        flex-direction: column !important;
+        border-right: 1px solid #333333 !important;
+      `;
+    }
+    
+    // Force visibility of main chat area
+    const chatMain = chatScreen.querySelector('.chat-main');
+    if (chatMain) {
+      chatMain.style.cssText = `
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        flex: 1 !important;
+        height: 100vh !important;
+        background: #0f0f0f !important;
+        flex-direction: column !important;
+      `;
+    }
+    
+    console.log('Emergency visibility styles applied to chat screen with maximum priority');
+  }
+  
   // Update user display
   if (currentUser) {
     updateUserDisplay(currentUser);

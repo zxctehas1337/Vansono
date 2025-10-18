@@ -31,14 +31,44 @@ body {
 
 /* Screens */
 .screen {
-  display: none;
+  display: none !important;
   width: 100%;
   height: 100vh;
   animation: fadeIn 0.3s ease;
 }
 
 .screen.active {
-  display: flex;
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* Emergency fix for chat screen visibility */
+#chat-screen.active {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  background: var(--bg-primary) !important;
+}
+
+#chat-screen.active .chat-layout {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  width: 100% !important;
+  height: 100vh !important;
+}
+
+#chat-screen.active .sidebar {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+#chat-screen.active .chat-main {
+  display: flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 .icon {
