@@ -23,6 +23,8 @@ const captchaChallenges = new Map();
 const onlineUsers = new Map(); // socketId -> userId
 const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
+const channels = new Map(); // channelId -> {id, name, description, members, createdAt}
+const pinnedMessages = new Map(); // chatId -> [messageId1, messageId2, ...]
 
 io.on('connection', (socket) => {
   console.log('', socket.id);
@@ -200,7 +202,7 @@ io.on('connection', (socket) => {
 
   // Отправка сообщения
   socket.on('message:send', (data) => {
-    const { to, text } = data;
+    const { to, text, isCallHistory, replyTo } = data;
     const fromUserId = onlineUsers.get(socket.id);
 
     if (!fromUserId) return;
@@ -210,7 +212,11 @@ io.on('connection', (socket) => {
       from: fromUserId,
       to,
       text,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      isCallHistory: isCallHistory || false,
+      edited: false,
+      deleted: false,
+      replyTo: replyTo || null
     };
 
     messages.push(message);
@@ -222,6 +228,86 @@ io.on('connection', (socket) => {
     }
 
     socket.emit('message:sent', message);
+  });
+
+  // Редактирование сообщения
+  socket.on('message:edit', (data) => {
+    const { messageId, newText } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const message = messages.find(m => m.id === messageId && m.from === fromUserId);
+    if (message) {
+      message.text = newText;
+      message.edited = true;
+      message.editedAt = Date.now();
+
+      // Уведомить всех участников чата об изменении
+      const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === message.to);
+      if (recipientSocket) {
+        io.to(recipientSocket[0]).emit('message:edited', message);
+      }
+      socket.emit('message:edited', message);
+    }
+  });
+
+  // Удаление сообщения
+  socket.on('message:delete', (data) => {
+    const { messageId } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const message = messages.find(m => m.id === messageId && m.from === fromUserId);
+    if (message) {
+      message.deleted = true;
+      message.deletedAt = Date.now();
+
+      // Уведомить всех участников чата об удалении
+      const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === message.to);
+      if (recipientSocket) {
+        io.to(recipientSocket[0]).emit('message:deleted', message);
+      }
+      socket.emit('message:deleted', message);
+    }
+  });
+
+  // Реакции на сообщения
+  socket.on('message:react', (data) => {
+    const { messageId, emoji } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const message = messages.find(m => m.id === messageId);
+    if (message) {
+      if (!message.reactions) {
+        message.reactions = {};
+      }
+      
+      if (!message.reactions[emoji]) {
+        message.reactions[emoji] = [];
+      }
+
+      // Удаляем предыдущую реакцию пользователя на это сообщение
+      Object.keys(message.reactions).forEach(emojiKey => {
+        message.reactions[emojiKey] = message.reactions[emojiKey].filter(userId => userId !== fromUserId);
+        if (message.reactions[emojiKey].length === 0) {
+          delete message.reactions[emojiKey];
+        }
+      });
+
+      // Добавляем новую реакцию
+      message.reactions[emoji].push(fromUserId);
+
+      // Уведомить всех участников чата о реакции
+      const recipientSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === message.to);
+      if (recipientSocket) {
+        io.to(recipientSocket[0]).emit('message:reacted', { messageId, reactions: message.reactions });
+      }
+      socket.emit('message:reacted', { messageId, reactions: message.reactions });
+    }
   });
 
   // Получение истории сообщений
@@ -314,6 +400,126 @@ io.on('connection', (socket) => {
     if (recipientSocket) {
       io.to(recipientSocket[0]).emit('call:ended');
     }
+  });
+
+  // Создание канала
+  socket.on('channel:create', (data) => {
+    const { name, description } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const channelId = uuidv4();
+    const channel = {
+      id: channelId,
+      name,
+      description,
+      members: [fromUserId],
+      createdAt: Date.now(),
+      createdBy: fromUserId
+    };
+
+    channels.set(channelId, channel);
+    socket.emit('channel:created', channel);
+  });
+
+  // Присоединение к каналу
+  socket.on('channel:join', (data) => {
+    const { channelId } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const channel = channels.get(channelId);
+    if (channel && !channel.members.includes(fromUserId)) {
+      channel.members.push(fromUserId);
+      socket.emit('channel:joined', channel);
+    }
+  });
+
+  // Отправка сообщения в канал
+  socket.on('channel:message', (data) => {
+    const { channelId, text, replyTo } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const channel = channels.get(channelId);
+    if (channel && channel.members.includes(fromUserId)) {
+      const message = {
+        id: uuidv4(),
+        from: fromUserId,
+        channelId,
+        text,
+        timestamp: Date.now(),
+        replyTo: replyTo || null,
+        edited: false,
+        deleted: false
+      };
+
+      messages.push(message);
+
+      // Отправка всем участникам канала
+      channel.members.forEach(memberId => {
+        const memberSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === memberId);
+        if (memberSocket) {
+          io.to(memberSocket[0]).emit('channel:message:received', message);
+        }
+      });
+    }
+  });
+
+  // Закрепление сообщения
+  socket.on('message:pin', (data) => {
+    const { messageId, chatId } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const message = messages.find(m => m.id === messageId);
+    if (message && (message.from === fromUserId || message.to === fromUserId)) {
+      if (!pinnedMessages.has(chatId)) {
+        pinnedMessages.set(chatId, []);
+      }
+      
+      const pinned = pinnedMessages.get(chatId);
+      if (!pinned.includes(messageId)) {
+        pinned.push(messageId);
+        socket.emit('message:pinned', { messageId, chatId });
+      }
+    }
+  });
+
+  // Открепление сообщения
+  socket.on('message:unpin', (data) => {
+    const { messageId, chatId } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const pinned = pinnedMessages.get(chatId);
+    if (pinned) {
+      const index = pinned.indexOf(messageId);
+      if (index > -1) {
+        pinned.splice(index, 1);
+        socket.emit('message:unpinned', { messageId, chatId });
+      }
+    }
+  });
+
+  // Получение закрепленных сообщений
+  socket.on('messages:pinned:get', (data) => {
+    const { chatId } = data;
+    const fromUserId = onlineUsers.get(socket.id);
+
+    if (!fromUserId) return;
+
+    const pinned = pinnedMessages.get(chatId) || [];
+    const pinnedMessagesList = pinned.map(messageId => 
+      messages.find(m => m.id === messageId)
+    ).filter(Boolean);
+
+    socket.emit('messages:pinned:list', pinnedMessagesList);
   });
 
   // Отключение

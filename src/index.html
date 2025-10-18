@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sontha - Modern Messenger</title>
+  <title>Sontha - Security for you</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -130,8 +130,62 @@
           <input type="text" placeholder="Search chats..." id="search-input">
         </div>
 
+        <!-- Chat Folders -->
+        <div class="folders-section" id="folders-section">
+          <div class="folders-header">
+            <h3>Folders</h3>
+            <button class="icon-btn" id="add-folder-btn" title="Add folder">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2V14M2 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+          <div class="folders-list" id="folders-list">
+            <!-- Folders will be dynamically added -->
+          </div>
+        </div>
+
         <div class="chats-list" id="chats-list">
+          <!-- Favorites Chat Item -->
+          <div class="chat-item favorites-chat-item" id="favorites-chat-item">
+            <div class="favorites-icon">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M20.84 4.61C20.33 4.1 19.69 3.8 19 3.8C18.31 3.8 17.67 4.1 17.16 4.61L12 9.77L6.84 4.61C6.33 4.1 5.69 3.8 5 3.8C4.31 3.8 3.67 4.1 3.16 4.61C2.65 5.12 2.35 5.76 2.35 6.45C2.35 7.14 2.65 7.78 3.16 8.29L8.32 13.45L12 17.13L15.68 13.45L20.84 8.29C21.35 7.78 21.65 7.14 21.65 6.45C21.65 5.76 21.35 5.12 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="chat-item-info">
+              <div class="chat-item-header">
+                <span class="chat-item-name">Favorites</span>
+                <span class="chat-item-time">Personal</span>
+              </div>
+              <div class="chat-item-preview">Your personal notes and saved messages</div>
+            </div>
+          </div>
           <!-- Chat items will be dynamically added -->
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons-section">
+          <button class="action-btn" id="create-group-btn" title="Create Group">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M16 4H18C19.1 4 20 4.9 20 6V16C20 17.1 19.1 18 18 18H2C0.9 18 0 17.1 0 16V6C0 4.9 0.9 4 2 4H4M16 4C16 2.9 15.1 2 14 2H6C4.9 2 4 2.9 4 4M16 4V6H4V4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M8 8H12M8 12H12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Create Group</span>
+          </button>
+          <button class="action-btn" id="create-channel-btn" title="Create Channel">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M2 3H18C18.5 3 19 3.5 19 4V16C19 16.5 18.5 17 18 17H2C1.5 17 1 16.5 1 16V4C1 3.5 1.5 3 2 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M6 7H14M6 11H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            <span>Create Channel</span>
+          </button>
+          <button class="action-btn" id="create-secret-chat-btn" title="Create Secret Chat">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M10 1L13 4L19 4L15 7L16 13L10 10L4 13L5 7L1 4L7 4L10 1Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            <span>Secret Chat</span>
+          </button>
         </div>
       </aside>
 
@@ -186,6 +240,34 @@
             <!-- Messages will be dynamically added -->
           </div>
 
+          <!-- Message Context Menu -->
+          <div class="chat-context-menu" id="message-context-menu">
+            <div class="context-menu-item" id="forward-message-btn">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1L15 8L8 15M15 8H1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Forward</span>
+            </div>
+            <div class="context-menu-item" id="reply-message-btn">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 1L15 8L8 15M15 8H1" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Reply</span>
+            </div>
+            <div class="context-menu-item" id="edit-message-btn">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M11 1L15 5L4.5 15.5H0.5V11.5L11 1Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Edit</span>
+            </div>
+            <div class="context-menu-item" id="delete-message-btn">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M11 3.5L8.5 6L11 8.5M3 3.5L5.5 6L3 8.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Delete</span>
+            </div>
+          </div>
+
           <div class="message-input-container">
             <button class="icon-btn" id="attach-btn" title="Attach file">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
@@ -193,6 +275,14 @@
               </svg>
             </button>
             <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+            <button class="icon-btn" id="voice-message-btn" title="Voice Message">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                <path d="M12 1C8.13 1 5 4.13 5 8V14C5 17.87 8.13 21 12 21C15.87 21 19 17.87 19 14V8C19 4.13 15.87 1 12 1Z" stroke="currentColor" stroke-width="2"/>
+                <path d="M9 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M15 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <path d="M12 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+            </button>
             <button class="icon-btn" id="emoji-btn" title="Emoji">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/>
@@ -206,6 +296,53 @@
                 <path d="M22 2L11 13M22 2L15 22L11 13M22 2L2 8L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </button>
+          </div>
+
+          <!-- Voice Recording Panel -->
+          <div class="voice-recording-panel" id="voice-recording-panel" style="display: none;">
+            <div class="voice-recording-content">
+              <div class="voice-recording-info">
+                <div class="voice-recording-icon">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+                    <path d="M12 1C8.13 1 5 4.13 5 8V14C5 17.87 8.13 21 12 21C15.87 21 19 17.87 19 14V8C19 4.13 15.87 1 12 1Z" stroke="currentColor" stroke-width="2"/>
+                    <path d="M9 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M15 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                    <path d="M12 9V15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div class="voice-recording-details">
+                  <div class="voice-recording-status" id="voice-recording-status">Recording...</div>
+                  <div class="voice-recording-time" id="voice-recording-time">00:00</div>
+                </div>
+              </div>
+              <div class="voice-recording-visualizer" id="voice-recording-visualizer">
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+                <div class="visualizer-bar"></div>
+              </div>
+              <div class="voice-recording-controls">
+                <button class="voice-control-btn cancel" id="voice-cancel-btn" title="Cancel">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </button>
+                <button class="voice-control-btn stop" id="voice-stop-btn" title="Stop">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <rect x="4" y="4" width="12" height="12" stroke="currentColor" stroke-width="2"/>
+                  </svg>
+                </button>
+                <button class="voice-control-btn send" id="voice-send-btn" title="Send" style="display: none;">
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path d="M18 2L9 11M18 2L13 18L9 11M18 2L2 6L9 11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -404,6 +541,220 @@
             </select>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Group Modal -->
+  <div id="create-group-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Group</h3>
+        <button class="icon-btn" id="close-group-modal" title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="group-name">Group Name</label>
+          <input type="text" id="group-name" placeholder="Enter group name">
+        </div>
+        <div class="input-group">
+          <label for="group-description">Description (optional)</label>
+          <textarea id="group-description" placeholder="Enter group description..." rows="3"></textarea>
+        </div>
+        <div class="input-group">
+          <label>Add Members</label>
+          <div class="members-search">
+            <input type="text" id="member-search" placeholder="Search users...">
+            <div class="members-list" id="members-list">
+              <!-- Members will be dynamically added -->
+            </div>
+          </div>
+        </div>
+        <div class="selected-members" id="selected-members">
+          <!-- Selected members will be shown here -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="cancel-group-btn">Cancel</button>
+        <button class="primary-btn" id="create-group-confirm-btn">Create Group</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Forward Message Modal -->
+  <div id="forward-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Forward Message</h3>
+        <button class="icon-btn" id="close-forward-modal" title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="forwarded-message-preview" id="forwarded-message-preview">
+          <!-- Original message preview will be shown here -->
+        </div>
+        <div class="input-group">
+          <label>Forward to:</label>
+          <div class="forward-options">
+            <button class="forward-option" id="forward-to-favorites">
+              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                <path d="M20.84 4.61C20.33 4.1 19.69 3.8 19 3.8C18.31 3.8 17.67 4.1 17.16 4.61L12 9.77L6.84 4.61C6.33 4.1 5.69 3.8 5 3.8C4.31 3.8 3.67 4.1 3.16 4.61C2.65 5.12 2.35 5.76 2.35 6.45C2.35 7.14 2.65 7.78 3.16 8.29L8.32 13.45L12 17.13L15.68 13.45L20.84 8.29C21.35 7.78 21.65 7.14 21.65 6.45C21.65 5.76 21.35 5.12 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span>Favorites</span>
+            </button>
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="forward-chat-select">Or select a chat:</label>
+          <select id="forward-chat-select">
+            <option value="">Choose a chat...</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="forward-comment">Add a comment (optional):</label>
+          <textarea id="forward-comment" placeholder="Add a comment..." rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="cancel-forward-btn">Cancel</button>
+        <button class="primary-btn" id="confirm-forward-btn">Forward</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secret Chat Modal -->
+  <div id="secret-chat-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Secret Chat</h3>
+        <button class="icon-btn" id="close-secret-modal" title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="secret-chat-info">
+          <div class="secret-icon">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+              <path d="M24 2L30 8L36 8L30 14L32 20L24 16L16 20L18 14L12 8L18 8L24 2Z" stroke="url(#secretGradient)" stroke-width="2" stroke-linejoin="round"/>
+              <defs>
+                <linearGradient id="secretGradient" x1="0" y1="0" x2="48" y2="48">
+                  <stop offset="0%" stop-color="#667eea"/>
+                  <stop offset="100%" stop-color="#764ba2"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h4>End-to-End Encrypted</h4>
+          <p>Messages in secret chats are encrypted and can self-destruct after a set time.</p>
+        </div>
+        <div class="input-group">
+          <label for="secret-chat-user">Select User</label>
+          <select id="secret-chat-user">
+            <option value="">Choose a user...</option>
+          </select>
+        </div>
+        <div class="input-group">
+          <label for="self-destruct-timer">Self-Destruct Timer</label>
+          <select id="self-destruct-timer">
+            <option value="0">No timer</option>
+            <option value="300">5 minutes</option>
+            <option value="3600">1 hour</option>
+            <option value="86400">1 day</option>
+            <option value="604800">1 week</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="cancel-secret-btn">Cancel</button>
+        <button class="primary-btn" id="create-secret-btn">Create Secret Chat</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Folder Creation Modal -->
+  <div id="folder-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Folder</h3>
+        <button class="icon-btn" id="close-folder-modal" title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="folder-name">Folder Name</label>
+          <input type="text" id="folder-name" placeholder="Enter folder name">
+        </div>
+        <div class="input-group">
+          <label for="folder-color">Folder Color</label>
+          <div class="color-picker">
+            <button class="color-option" data-color="#667eea" style="background: #667eea;"></button>
+            <button class="color-option" data-color="#764ba2" style="background: #764ba2;"></button>
+            <button class="color-option" data-color="#10B981" style="background: #10B981;"></button>
+            <button class="color-option" data-color="#F59E0B" style="background: #F59E0B;"></button>
+            <button class="color-option" data-color="#EF4444" style="background: #EF4444;"></button>
+            <button class="color-option" data-color="#8B5CF6" style="background: #8B5CF6;"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="cancel-folder-btn">Cancel</button>
+        <button class="primary-btn" id="create-folder-btn">Create Folder</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Channel Modal -->
+  <div id="create-channel-modal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Create Channel</h3>
+        <button class="icon-btn" id="close-channel-modal" title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="channel-info">
+          <div class="channel-icon">
+            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+              <path d="M4 8H44C45.1 8 46 8.9 46 10V38C46 39.1 45.1 40 44 40H4C2.9 40 2 39.1 2 38V10C2 8.9 2.9 8 4 8Z" stroke="url(#channelGradient)" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M12 20H36M12 28H36" stroke="url(#channelGradient)" stroke-width="2" stroke-linecap="round"/>
+              <defs>
+                <linearGradient id="channelGradient" x1="0" y1="0" x2="48" y2="48">
+                  <stop offset="0%" stop-color="#667eea"/>
+                  <stop offset="100%" stop-color="#764ba2"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h4>Public Channel</h4>
+          <p>Create a public channel for broadcasting messages to multiple users.</p>
+        </div>
+        <div class="input-group">
+          <label for="channel-name">Channel Name</label>
+          <input type="text" id="channel-name" placeholder="Enter channel name">
+        </div>
+        <div class="input-group">
+          <label for="channel-description">Description (optional)</label>
+          <textarea id="channel-description" placeholder="Enter channel description..." rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="cancel-channel-btn">Cancel</button>
+        <button class="primary-btn" id="create-channel-confirm-btn">Create Channel</button>
       </div>
     </div>
   </div>

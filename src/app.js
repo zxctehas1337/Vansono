@@ -326,7 +326,8 @@ messageInput.addEventListener('keypress', (e) => {
 function displayMessage(message) {
   const isSent = message.from === currentUser.id;
   const messageEl = document.createElement('div');
-  messageEl.className = `message ${isSent ? 'sent' : ''}`;
+  messageEl.className = `message ${isSent ? 'sent' : ''} ${message.deleted ? 'deleted' : ''}`;
+  messageEl.dataset.messageId = message.id;
 
   const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
     hour: '2-digit',
@@ -358,14 +359,95 @@ function displayMessage(message) {
     }
   }
 
+  // Reply indicator
+  let replyIndicator = '';
+  if (message.replyTo) {
+    const repliedMessage = messages.find(m => m.id === message.replyTo);
+    if (repliedMessage) {
+      replyIndicator = `
+        <div class="reply-indicator">
+          <div class="reply-line"></div>
+          <div class="reply-content">
+            <div class="reply-sender">${repliedMessage.from === currentUser.id ? currentUser.name : currentChatUser.name}</div>
+            <div class="reply-text">${escapeHtml(repliedMessage.text.substring(0, 50))}${repliedMessage.text.length > 50 ? '...' : ''}</div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // Edited indicator
+  let editedIndicator = '';
+  if (message.edited) {
+    editedIndicator = '<span class="edited-indicator">edited</span>';
+  }
+
+  // Reactions
+  let reactionsHtml = '';
+  if (message.reactions && Object.keys(message.reactions).length > 0) {
+    reactionsHtml = `
+      <div class="message-reactions">
+        ${Object.entries(message.reactions).map(([emoji, userIds]) => `
+          <button class="reaction-btn" onclick="toggleReaction('${message.id}', '${emoji}')">
+            <span class="reaction-emoji">${emoji}</span>
+            <span class="reaction-count">${userIds.length}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // Message actions
+  let messageActions = '';
+  if (isSent && !message.deleted) {
+    messageActions = `
+      <div class="message-actions">
+        <button class="message-action-btn" onclick="editMessage('${message.id}')" title="Edit">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M11 1L15 5L4.5 15.5H0.5V11.5L11 1Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="message-action-btn" onclick="deleteMessage('${message.id}')" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M11 3.5L8.5 6L11 8.5M3 3.5L5.5 6L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="message-action-btn" onclick="pinMessage('${message.id}')" title="Pin">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1L9 5L13 5L10 8L11 12L7 10L3 12L4 8L1 5L5 5L7 1Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    `;
+  }
+
+  // Add reaction button
+  const addReactionBtn = `
+    <button class="add-reaction-btn" onclick="showReactionPicker('${message.id}')" title="Add reaction">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+        <path d="M7 4V10M4 7H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  `;
+
   messageEl.innerHTML = `
     <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
     <div class="message-content">
-      <div class="message-bubble">${escapeHtml(message.text)}</div>
-      <div class="message-meta">
-        <div class="message-time">${time}</div>
-        ${readReceipts}
+      ${replyIndicator}
+      <div class="message-bubble ${message.deleted ? 'deleted-message' : ''}">
+        ${message.deleted ? 'This message was deleted' : escapeHtml(message.text)}
       </div>
+      <div class="message-meta">
+        <div class="message-time">
+          ${time}
+          ${editedIndicator}
+        </div>
+        ${readReceipts}
+        ${messageActions}
+      </div>
+      ${reactionsHtml}
+      ${addReactionBtn}
     </div>
   `;
 
@@ -377,6 +459,13 @@ socket.on('message:received', (message) => {
   if (currentChatUser && message.from === currentChatUser.id) {
     displayMessage(message);
     scrollToBottom();
+  } else {
+    // Show desktop notification for messages from other users
+    showDesktopNotification(
+      'New Message',
+      `${message.from === currentUser.id ? 'You' : 'Someone'} sent a message`,
+      '/favicon.ico'
+    );
   }
 });
 
@@ -1269,5 +1358,2072 @@ document.addEventListener('DOMContentLoaded', () => {
   applyMessageSize(savedMessageSize);
 });
 
-// Add this to your initialization code
-// settingsBtn.addEventListener('click', switchTheme); // Remove this line since we now have menu system
+// ===== CHAT FOLDERS FUNCTIONALITY =====
+
+// Folder management
+let folders = JSON.parse(localStorage.getItem('chatFolders') || '[]');
+let currentFolder = null;
+
+// Folder elements
+const addFolderBtn = document.getElementById('add-folder-btn');
+const folderModal = document.getElementById('folder-modal');
+const closeFolderModal = document.getElementById('close-folder-modal');
+const cancelFolderBtn = document.getElementById('cancel-folder-btn');
+const createFolderBtn = document.getElementById('create-folder-btn');
+const folderNameInput = document.getElementById('folder-name');
+const foldersList = document.getElementById('folders-list');
+
+// Initialize folders
+function initializeFolders() {
+  loadFolders();
+  renderFolders();
+}
+
+// Load folders from localStorage
+function loadFolders() {
+  folders = JSON.parse(localStorage.getItem('chatFolders') || '[]');
+}
+
+// Save folders to localStorage
+function saveFolders() {
+  localStorage.setItem('chatFolders', JSON.stringify(folders));
+}
+
+// Render folders in sidebar
+function renderFolders() {
+  foldersList.innerHTML = '';
+  
+  folders.forEach(folder => {
+    const folderEl = document.createElement('div');
+    folderEl.className = 'folder-item';
+    folderEl.dataset.folderId = folder.id;
+    
+    const chatCount = getChatsInFolder(folder.id).length;
+    
+    folderEl.innerHTML = `
+      <div class="folder-icon" style="background: ${folder.color};">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M2 3H10C10.5 3 11 3.5 11 4V9C11 9.5 10.5 10 10 10H2C1.5 10 1 9.5 1 9V4C1 3.5 1.5 3 2 3Z" stroke="white" stroke-width="1" stroke-linejoin="round"/>
+          <path d="M3 1H9C9.5 1 10 1.5 10 2V3H2V2C2 1.5 2.5 1 3 1Z" stroke="white" stroke-width="1" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div class="folder-name">${folder.name}</div>
+      <div class="folder-count">${chatCount}</div>
+      <div class="folder-actions">
+        <button class="folder-action-btn" onclick="editFolder('${folder.id}')" title="Edit">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M11 1L13 3L4.5 11.5H2.5V9.5L11 1Z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="folder-action-btn" onclick="deleteFolder('${folder.id}')" title="Delete">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M11 3.5L8.5 6L11 8.5M3 3.5L5.5 6L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    `;
+    
+    folderEl.addEventListener('click', (e) => {
+      if (!e.target.closest('.folder-actions')) {
+        selectFolder(folder.id);
+      }
+    });
+    
+    foldersList.appendChild(folderEl);
+  });
+}
+
+// Get chats in folder
+function getChatsInFolder(folderId) {
+  const allChats = JSON.parse(localStorage.getItem('chatFolders') || '[]');
+  return allChats.filter(chat => chat.folderId === folderId);
+}
+
+// Select folder
+function selectFolder(folderId) {
+  currentFolder = folderId;
+  
+  // Update active state
+  document.querySelectorAll('.folder-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  document.querySelector(`[data-folder-id="${folderId}"]`)?.classList.add('active');
+  
+  // Filter chats by folder
+  filterChatsByFolder(folderId);
+}
+
+// Filter chats by folder
+function filterChatsByFolder(folderId) {
+  const chatItems = document.querySelectorAll('.chat-item');
+  chatItems.forEach(item => {
+    const chatFolderId = item.dataset.folderId || 'none';
+    if (folderId === 'all' || chatFolderId === folderId) {
+      item.style.display = 'flex';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
+// Add folder modal
+addFolderBtn.addEventListener('click', () => {
+  folderModal.classList.add('active');
+  folderNameInput.focus();
+});
+
+// Close folder modal
+closeFolderModal.addEventListener('click', () => {
+  folderModal.classList.remove('active');
+  resetFolderModal();
+});
+
+cancelFolderBtn.addEventListener('click', () => {
+  folderModal.classList.remove('active');
+  resetFolderModal();
+});
+
+// Create folder
+createFolderBtn.addEventListener('click', () => {
+  const name = folderNameInput.value.trim();
+  const selectedColor = document.querySelector('.color-option.selected')?.dataset.color || '#667eea';
+  
+  if (!name) {
+    alert('Please enter folder name');
+    return;
+  }
+  
+  const folder = {
+    id: Date.now().toString(),
+    name: name,
+    color: selectedColor,
+    createdAt: Date.now()
+  };
+  
+  folders.push(folder);
+  saveFolders();
+  renderFolders();
+  
+  folderModal.classList.remove('active');
+  resetFolderModal();
+});
+
+// Reset folder modal
+function resetFolderModal() {
+  folderNameInput.value = '';
+  document.querySelectorAll('.color-option').forEach(option => {
+    option.classList.remove('selected');
+  });
+  document.querySelector('.color-option[data-color="#667eea"]').classList.add('selected');
+}
+
+// Edit folder
+function editFolder(folderId) {
+  const folder = folders.find(f => f.id === folderId);
+  if (!folder) return;
+  
+  folderNameInput.value = folder.name;
+  document.querySelectorAll('.color-option').forEach(option => {
+    option.classList.remove('selected');
+    if (option.dataset.color === folder.color) {
+      option.classList.add('selected');
+    }
+  });
+  
+  folderModal.classList.add('active');
+  folderNameInput.focus();
+  
+  // Update create button to edit
+  createFolderBtn.textContent = 'Update Folder';
+  createFolderBtn.onclick = () => updateFolder(folderId);
+}
+
+// Update folder
+function updateFolder(folderId) {
+  const name = folderNameInput.value.trim();
+  const selectedColor = document.querySelector('.color-option.selected')?.dataset.color || '#667eea';
+  
+  if (!name) {
+    alert('Please enter folder name');
+    return;
+  }
+  
+  const folder = folders.find(f => f.id === folderId);
+  if (folder) {
+    folder.name = name;
+    folder.color = selectedColor;
+    saveFolders();
+    renderFolders();
+  }
+  
+  folderModal.classList.remove('active');
+  resetFolderModal();
+  
+  // Reset create button
+  createFolderBtn.textContent = 'Create Folder';
+  createFolderBtn.onclick = () => createFolder();
+}
+
+// Delete folder
+function deleteFolder(folderId) {
+  if (confirm('Are you sure you want to delete this folder?')) {
+    folders = folders.filter(f => f.id !== folderId);
+    saveFolders();
+    renderFolders();
+    
+    if (currentFolder === folderId) {
+      currentFolder = null;
+      filterChatsByFolder('all');
+    }
+  }
+}
+
+// Add chat to folder
+function addChatToFolder(chatId, folderId) {
+  // This would be implemented when we have the chat system
+  console.log(`Adding chat ${chatId} to folder ${folderId}`);
+}
+
+// ===== SECRET CHATS FUNCTIONALITY =====
+
+// Secret chat management
+let secretChats = JSON.parse(localStorage.getItem('secretChats') || '[]');
+let currentSecretChat = null;
+
+// Secret chat elements
+const createSecretChatBtn = document.getElementById('create-secret-chat-btn');
+const secretChatModal = document.getElementById('secret-chat-modal');
+const closeSecretModal = document.getElementById('close-secret-modal');
+const cancelSecretBtn = document.getElementById('cancel-secret-btn');
+const createSecretBtn = document.getElementById('create-secret-btn');
+const secretChatUserSelect = document.getElementById('secret-chat-user');
+const selfDestructTimerSelect = document.getElementById('self-destruct-timer');
+
+// Initialize secret chats
+function initializeSecretChats() {
+  loadSecretChats();
+  populateSecretChatUsers();
+}
+
+// Load secret chats from localStorage
+function loadSecretChats() {
+  secretChats = JSON.parse(localStorage.getItem('secretChats') || '[]');
+}
+
+// Save secret chats to localStorage
+function saveSecretChats() {
+  localStorage.setItem('secretChats', JSON.stringify(secretChats));
+}
+
+// Populate users for secret chat
+function populateSecretChatUsers() {
+  // This would be populated from the users list
+  // For now, we'll add some dummy users
+  const users = [
+    { id: '1', name: 'John Doe', username: 'john' },
+    { id: '2', name: 'Jane Smith', username: 'jane' },
+    { id: '3', name: 'Bob Johnson', username: 'bob' }
+  ];
+  
+  secretChatUserSelect.innerHTML = '<option value="">Choose a user...</option>';
+  users.forEach(user => {
+    const option = document.createElement('option');
+    option.value = user.id;
+    option.textContent = `${user.name} (@${user.username})`;
+    secretChatUserSelect.appendChild(option);
+  });
+}
+
+// Create secret chat
+createSecretChatBtn.addEventListener('click', () => {
+  secretChatModal.classList.add('active');
+});
+
+// Close secret chat modal
+closeSecretModal.addEventListener('click', () => {
+  secretChatModal.classList.remove('active');
+  resetSecretModal();
+});
+
+cancelSecretBtn.addEventListener('click', () => {
+  secretChatModal.classList.remove('active');
+  resetSecretModal();
+});
+
+// Create secret chat
+createSecretBtn.addEventListener('click', () => {
+  const userId = secretChatUserSelect.value;
+  const timer = parseInt(selfDestructTimerSelect.value);
+  
+  if (!userId) {
+    alert('Please select a user');
+    return;
+  }
+  
+  const secretChat = {
+    id: Date.now().toString(),
+    userId: userId,
+    isSecret: true,
+    selfDestructTimer: timer,
+    createdAt: Date.now(),
+    encryptionKey: generateEncryptionKey()
+  };
+  
+  secretChats.push(secretChat);
+  saveSecretChats();
+  
+  // Open the secret chat
+  openSecretChat(secretChat);
+  
+  secretChatModal.classList.remove('active');
+  resetSecretModal();
+});
+
+// Reset secret modal
+function resetSecretModal() {
+  secretChatUserSelect.value = '';
+  selfDestructTimerSelect.value = '0';
+}
+
+// Generate encryption key for secret chat
+function generateEncryptionKey() {
+  // Simple key generation - in production, use proper crypto
+  return btoa(Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15));
+}
+
+// Open secret chat
+function openSecretChat(secretChat) {
+  currentSecretChat = secretChat;
+  
+  // Update chat header to show secret chat indicator
+  const chatName = document.getElementById('chat-name');
+  if (chatName) {
+    chatName.innerHTML = `
+      ${getUserNameById(secretChat.userId)} 
+      <span class="secret-chat-indicator">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M6 1L7.5 2.5L9.5 2.5L8 4L9 6L6 5L3 6L4 4L2.5 2.5L4.5 2.5L6 1Z" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>
+        </svg>
+        Secret
+      </span>
+    `;
+  }
+  
+  // Load secret messages
+  loadSecretMessages(secretChat.id);
+}
+
+// Get user name by ID
+function getUserNameById(userId) {
+  // This would fetch from users list
+  const users = {
+    '1': 'John Doe',
+    '2': 'Jane Smith', 
+    '3': 'Bob Johnson'
+  };
+  return users[userId] || 'Unknown User';
+}
+
+// Load secret messages
+function loadSecretMessages(secretChatId) {
+  const messages = JSON.parse(localStorage.getItem(`secretMessages_${secretChatId}`) || '[]');
+  messagesContainer.innerHTML = '';
+  
+  messages.forEach(msg => {
+    displaySecretMessage(msg);
+  });
+  scrollToBottom();
+}
+
+// Display secret message
+function displaySecretMessage(message) {
+  const isSent = message.from === currentUser.id;
+  const messageEl = document.createElement('div');
+  messageEl.className = `message secret-message ${isSent ? 'sent' : ''}`;
+
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const senderName = isSent ? currentUser.name : getUserNameById(message.to);
+
+  // Decrypt message
+  const decryptedText = decryptMessage(message.text, message.encryptionKey);
+
+  // Self-destruct timer display
+  let timerDisplay = '';
+  if (message.selfDestructTimer > 0) {
+    const timeLeft = message.selfDestructTimer - (Date.now() - message.timestamp) / 1000;
+    if (timeLeft > 0) {
+      timerDisplay = `
+        <div class="self-destruct-timer">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <circle cx="6" cy="6" r="5" stroke="currentColor" stroke-width="1"/>
+            <path d="M6 3V6L8 8" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+          </svg>
+          ${formatTimeLeft(timeLeft)}
+        </div>
+      `;
+    }
+  }
+
+  messageEl.innerHTML = `
+    <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
+    <div class="message-content">
+      <div class="message-bubble">${escapeHtml(decryptedText)}</div>
+      <div class="message-meta">
+        <div class="message-time">${time}</div>
+        ${timerDisplay}
+      </div>
+    </div>
+  `;
+
+  messagesContainer.appendChild(messageEl);
+  
+  // Check if message should self-destruct
+  if (message.selfDestructTimer > 0) {
+    const timeLeft = message.selfDestructTimer - (Date.now() - message.timestamp) / 1000;
+    if (timeLeft <= 0) {
+      messageEl.style.opacity = '0.5';
+      messageEl.querySelector('.message-bubble').textContent = 'This message has self-destructed';
+    }
+  }
+}
+
+// Encrypt message
+function encryptMessage(text, key) {
+  // Simple encryption - in production, use proper encryption
+  return btoa(text + key);
+}
+
+// Decrypt message
+function decryptMessage(encryptedText, key) {
+  try {
+    const decrypted = atob(encryptedText);
+    return decrypted.replace(key, '');
+  } catch (e) {
+    return 'Unable to decrypt message';
+  }
+}
+
+// Format time left for self-destruct
+function formatTimeLeft(seconds) {
+  if (seconds <= 0) return '0s';
+  
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  } else if (minutes > 0) {
+    return `${minutes}m ${secs}s`;
+  } else {
+    return `${secs}s`;
+  }
+}
+
+// Send secret message
+function sendSecretMessage() {
+  const text = messageInput.value.trim();
+  
+  if (!text || !currentSecretChat) return;
+
+  const message = {
+    id: Date.now().toString(),
+    from: currentUser.id,
+    to: currentSecretChat.userId,
+    text: encryptMessage(text, currentSecretChat.encryptionKey),
+    timestamp: Date.now(),
+    isSecret: true,
+    selfDestructTimer: currentSecretChat.selfDestructTimer,
+    encryptionKey: currentSecretChat.encryptionKey
+  };
+
+  // Save to localStorage
+  const messages = JSON.parse(localStorage.getItem(`secretMessages_${currentSecretChat.id}`) || '[]');
+  messages.push(message);
+  localStorage.setItem(`secretMessages_${currentSecretChat.id}`, JSON.stringify(messages));
+
+  displaySecretMessage(message);
+  messageInput.value = '';
+  scrollToBottom();
+}
+
+// ===== MESSAGE FORWARDING FUNCTIONALITY =====
+
+// Message forwarding management
+let selectedMessage = null;
+
+// Forward modal elements
+const forwardModal = document.getElementById('forward-modal');
+const closeForwardModal = document.getElementById('close-forward-modal');
+const cancelForwardBtn = document.getElementById('cancel-forward-btn');
+const confirmForwardBtn = document.getElementById('confirm-forward-btn');
+const forwardToFavoritesBtn = document.getElementById('forward-to-favorites');
+const forwardChatSelect = document.getElementById('forward-chat-select');
+const forwardCommentTextarea = document.getElementById('forward-comment');
+const forwardedMessagePreview = document.getElementById('forwarded-message-preview');
+
+// Message context menu elements
+const messageContextMenu = document.getElementById('message-context-menu');
+const forwardMessageBtn = document.getElementById('forward-message-btn');
+const replyMessageBtn = document.getElementById('reply-message-btn');
+const editMessageBtn = document.getElementById('edit-message-btn');
+const deleteMessageBtn = document.getElementById('delete-message-btn');
+
+// Initialize message forwarding
+function initializeMessageForwarding() {
+  setupMessageContextMenu();
+  setupForwardModal();
+}
+
+// Setup message context menu
+function setupMessageContextMenu() {
+  // Add right-click context menu to messages
+  messagesContainer.addEventListener('contextmenu', (e) => {
+    const messageEl = e.target.closest('.message');
+    if (messageEl) {
+      e.preventDefault();
+      showMessageContextMenu(e, messageEl);
+    }
+  });
+
+  // Hide context menu when clicking elsewhere
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.chat-context-menu') && !e.target.closest('.message')) {
+      hideMessageContextMenu();
+    }
+  });
+
+  // Forward message button
+  forwardMessageBtn.addEventListener('click', () => {
+    if (selectedMessage) {
+      showForwardModal(selectedMessage);
+      hideMessageContextMenu();
+    }
+  });
+
+  // Reply message button
+  replyMessageBtn.addEventListener('click', () => {
+    if (selectedMessage) {
+      startReply(selectedMessage);
+      hideMessageContextMenu();
+    }
+  });
+
+  // Edit message button
+  editMessageBtn.addEventListener('click', () => {
+    if (selectedMessage) {
+      startEdit(selectedMessage);
+      hideMessageContextMenu();
+    }
+  });
+
+  // Delete message button
+  deleteMessageBtn.addEventListener('click', () => {
+    if (selectedMessage) {
+      deleteMessage(selectedMessage);
+      hideMessageContextMenu();
+    }
+  });
+}
+
+// Show message context menu
+function showMessageContextMenu(e, messageEl) {
+  selectedMessage = messageEl;
+  
+  const rect = messageEl.getBoundingClientRect();
+  const containerRect = messagesContainer.getBoundingClientRect();
+  
+  messageContextMenu.style.display = 'flex';
+  messageContextMenu.style.left = `${rect.right - containerRect.left - 160}px`;
+  messageContextMenu.style.top = `${rect.top - containerRect.top}px`;
+}
+
+// Hide message context menu
+function hideMessageContextMenu() {
+  messageContextMenu.style.display = 'none';
+  selectedMessage = null;
+}
+
+// Setup forward modal
+function setupForwardModal() {
+  // Close forward modal
+  closeForwardModal.addEventListener('click', () => {
+    forwardModal.classList.remove('active');
+    resetForwardModal();
+  });
+
+  cancelForwardBtn.addEventListener('click', () => {
+    forwardModal.classList.remove('active');
+    resetForwardModal();
+  });
+
+  // Forward to favorites
+  forwardToFavoritesBtn.addEventListener('click', () => {
+    document.querySelectorAll('.forward-option').forEach(option => {
+      option.classList.remove('selected');
+    });
+    forwardToFavoritesBtn.classList.add('selected');
+    forwardChatSelect.value = '';
+  });
+
+  // Forward chat select
+  forwardChatSelect.addEventListener('change', () => {
+    if (forwardChatSelect.value) {
+      document.querySelectorAll('.forward-option').forEach(option => {
+        option.classList.remove('selected');
+      });
+    }
+  });
+
+  // Confirm forward
+  confirmForwardBtn.addEventListener('click', () => {
+    if (selectedMessage) {
+      const comment = forwardCommentTextarea.value.trim();
+      const isToFavorites = forwardToFavoritesBtn.classList.contains('selected');
+      const chatId = forwardChatSelect.value;
+      
+      if (isToFavorites) {
+        forwardToFavorites(selectedMessage, comment);
+      } else if (chatId) {
+        forwardToChat(selectedMessage, chatId, comment);
+      } else {
+        alert('Please select a destination');
+        return;
+      }
+      
+      forwardModal.classList.remove('active');
+      resetForwardModal();
+    }
+  });
+}
+
+// Show forward modal
+function showForwardModal(messageEl) {
+  const messageText = messageEl.querySelector('.message-bubble').textContent;
+  const messageTime = messageEl.querySelector('.message-time').textContent;
+  
+  forwardedMessagePreview.innerHTML = `
+    <div class="message-preview">
+      <div class="message-preview-text">${escapeHtml(messageText)}</div>
+      <div class="message-preview-time">${messageTime}</div>
+    </div>
+  `;
+  
+  // Populate chat options
+  populateForwardChats();
+  
+  forwardModal.classList.add('active');
+}
+
+// Populate forward chats
+function populateForwardChats() {
+  forwardChatSelect.innerHTML = '<option value="">Choose a chat...</option>';
+  
+  // This would be populated from actual chats
+  const chats = [
+    { id: '1', name: 'John Doe' },
+    { id: '2', name: 'Jane Smith' },
+    { id: '3', name: 'Bob Johnson' }
+  ];
+  
+  chats.forEach(chat => {
+    const option = document.createElement('option');
+    option.value = chat.id;
+    option.textContent = chat.name;
+    forwardChatSelect.appendChild(option);
+  });
+}
+
+// Forward to favorites
+function forwardToFavorites(messageEl, comment) {
+  const messageText = messageEl.querySelector('.message-bubble').textContent;
+  const messageTime = messageEl.querySelector('.message-time').textContent;
+  
+  const forwardedMessage = {
+    id: Date.now().toString(),
+    text: comment ? `${comment}\n\nForwarded: ${messageText}` : `Forwarded: ${messageText}`,
+    timestamp: Date.now(),
+    isForwarded: true,
+    originalTime: messageTime
+  };
+  
+  // Save to favorites
+  const favoritesMessages = JSON.parse(localStorage.getItem('favoritesMessages') || '[]');
+  favoritesMessages.push(forwardedMessage);
+  localStorage.setItem('favoritesMessages', JSON.stringify(favoritesMessages));
+  
+  // Show success message
+  showNotification('Message forwarded to Favorites', 'success');
+}
+
+// Forward to chat
+function forwardToChat(messageEl, chatId, comment) {
+  const messageText = messageEl.querySelector('.message-bubble').textContent;
+  const messageTime = messageEl.querySelector('.message-time').textContent;
+  
+  const forwardedMessage = {
+    id: Date.now().toString(),
+    from: currentUser.id,
+    to: chatId,
+    text: comment ? `${comment}\n\nForwarded: ${messageText}` : `Forwarded: ${messageText}`,
+    timestamp: Date.now(),
+    isForwarded: true,
+    originalTime: messageTime
+  };
+  
+  // This would send to the server
+  console.log('Forwarding message to chat:', chatId, forwardedMessage);
+  
+  // Show success message
+  showNotification('Message forwarded', 'success');
+}
+
+// Start reply
+function startReply(messageEl) {
+  const messageText = messageEl.querySelector('.message-bubble').textContent;
+  const messageTime = messageEl.querySelector('.message-time').textContent;
+  
+  // Add reply indicator to input
+  const replyIndicator = document.createElement('div');
+  replyIndicator.className = 'reply-indicator';
+  replyIndicator.innerHTML = `
+    <div class="reply-preview">
+      <div class="reply-text">${escapeHtml(messageText)}</div>
+      <div class="reply-time">${messageTime}</div>
+    </div>
+    <button class="reply-cancel" onclick="cancelReply()">×</button>
+  `;
+  
+  messageInput.parentNode.insertBefore(replyIndicator, messageInput);
+  messageInput.focus();
+}
+
+// Cancel reply
+function cancelReply() {
+  const replyIndicator = document.querySelector('.reply-indicator');
+  if (replyIndicator) {
+    replyIndicator.remove();
+  }
+}
+
+// Start edit
+function startEdit(messageEl) {
+  const messageBubble = messageEl.querySelector('.message-bubble');
+  const originalText = messageBubble.textContent;
+  
+  // Create edit input
+  const editInput = document.createElement('input');
+  editInput.type = 'text';
+  editInput.value = originalText;
+  editInput.className = 'edit-input';
+  
+  // Replace message bubble with input
+  messageBubble.style.display = 'none';
+  messageBubble.parentNode.insertBefore(editInput, messageBubble);
+  editInput.focus();
+  editInput.select();
+  
+  // Handle edit completion
+  editInput.addEventListener('blur', () => {
+    const newText = editInput.value.trim();
+    if (newText && newText !== originalText) {
+      messageBubble.textContent = newText;
+      messageBubble.style.display = 'block';
+      editInput.remove();
+      
+      // Add edited indicator
+      const messageMeta = messageEl.querySelector('.message-meta');
+      const editedIndicator = document.createElement('span');
+      editedIndicator.className = 'edited-indicator';
+      editedIndicator.textContent = 'Edited';
+      messageMeta.appendChild(editedIndicator);
+      
+      showNotification('Message edited', 'success');
+    } else {
+      messageBubble.style.display = 'block';
+      editInput.remove();
+    }
+  });
+  
+  editInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      editInput.blur();
+    }
+  });
+}
+
+// Delete message
+function deleteMessage(messageEl) {
+  if (confirm('Are you sure you want to delete this message?')) {
+    messageEl.style.opacity = '0.5';
+    messageEl.querySelector('.message-bubble').textContent = 'This message was deleted';
+    messageEl.classList.add('deleted');
+    
+    showNotification('Message deleted', 'success');
+  }
+}
+
+// Reset forward modal
+function resetForwardModal() {
+  forwardCommentTextarea.value = '';
+  document.querySelectorAll('.forward-option').forEach(option => {
+    option.classList.remove('selected');
+  });
+  forwardChatSelect.value = '';
+  forwardedMessagePreview.innerHTML = '';
+}
+
+// Show notification
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification notification-${type}`;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.remove();
+  }, 3000);
+}
+
+// ===== VOICE MESSAGES FUNCTIONALITY =====
+
+// Voice recording management
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStartTime = null;
+let recordingTimer = null;
+let isRecording = false;
+
+// Voice recording elements
+const voiceMessageBtn = document.getElementById('voice-message-btn');
+const voiceRecordingPanel = document.getElementById('voice-recording-panel');
+const voiceRecordingStatus = document.getElementById('voice-recording-status');
+const voiceRecordingTime = document.getElementById('voice-recording-time');
+const voiceRecordingVisualizer = document.getElementById('voice-recording-visualizer');
+const voiceCancelBtn = document.getElementById('voice-cancel-btn');
+const voiceStopBtn = document.getElementById('voice-stop-btn');
+const voiceSendBtn = document.getElementById('voice-send-btn');
+
+// Initialize voice messages
+function initializeVoiceMessages() {
+  setupVoiceRecording();
+}
+
+// Setup voice recording
+function setupVoiceRecording() {
+  // Start voice recording
+  voiceMessageBtn.addEventListener('click', () => {
+    if (!isRecording) {
+      startVoiceRecording();
+    }
+  });
+
+  // Cancel recording
+  voiceCancelBtn.addEventListener('click', () => {
+    cancelVoiceRecording();
+  });
+
+  // Stop recording
+  voiceStopBtn.addEventListener('click', () => {
+    stopVoiceRecording();
+  });
+
+  // Send voice message
+  voiceSendBtn.addEventListener('click', () => {
+    sendVoiceMessage();
+  });
+}
+
+// Start voice recording
+async function startVoiceRecording() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    
+    mediaRecorder.ondataavailable = (event) => {
+      audioChunks.push(event.data);
+    };
+    
+    mediaRecorder.onstop = () => {
+      const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+      const audioUrl = URL.createObjectURL(audioBlob);
+      
+      // Show send button
+      voiceStopBtn.style.display = 'none';
+      voiceSendBtn.style.display = 'flex';
+      voiceRecordingStatus.textContent = 'Recording complete';
+      
+      // Store audio for sending
+      voiceSendBtn.dataset.audioUrl = audioUrl;
+      voiceSendBtn.dataset.audioBlob = audioBlob;
+    };
+    
+    mediaRecorder.start();
+    isRecording = true;
+    recordingStartTime = Date.now();
+    
+    // Show recording panel
+    voiceRecordingPanel.style.display = 'block';
+    messageInput.style.display = 'none';
+    
+    // Start timer
+    startRecordingTimer();
+    
+    // Start visualizer animation
+    startVisualizerAnimation();
+    
+    showNotification('Voice recording started', 'info');
+    
+  } catch (error) {
+    console.error('Error accessing microphone:', error);
+    showNotification('Unable to access microphone', 'error');
+  }
+}
+
+// Stop voice recording
+function stopVoiceRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+    
+    // Stop timer
+    if (recordingTimer) {
+      clearInterval(recordingTimer);
+    }
+    
+    // Stop visualizer
+    stopVisualizerAnimation();
+    
+    showNotification('Voice recording stopped', 'info');
+  }
+}
+
+// Cancel voice recording
+function cancelVoiceRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    isRecording = false;
+  }
+  
+  // Stop timer
+  if (recordingTimer) {
+    clearInterval(recordingTimer);
+  }
+  
+  // Stop visualizer
+  stopVisualizerAnimation();
+  
+  // Hide recording panel
+  voiceRecordingPanel.style.display = 'none';
+  messageInput.style.display = 'block';
+  
+  // Reset UI
+  voiceStopBtn.style.display = 'flex';
+  voiceSendBtn.style.display = 'none';
+  voiceRecordingStatus.textContent = 'Recording...';
+  voiceRecordingTime.textContent = '00:00';
+  
+  showNotification('Voice recording cancelled', 'info');
+}
+
+// Start recording timer
+function startRecordingTimer() {
+  recordingTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    voiceRecordingTime.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  }, 1000);
+}
+
+// Start visualizer animation
+function startVisualizerAnimation() {
+  const bars = voiceRecordingVisualizer.querySelectorAll('.visualizer-bar');
+  bars.forEach((bar, index) => {
+    bar.style.animation = `visualizerPulse ${0.5 + Math.random() * 0.5}s ease-in-out infinite alternate`;
+    bar.style.animationDelay = `${index * 0.1}s`;
+  });
+}
+
+// Stop visualizer animation
+function stopVisualizerAnimation() {
+  const bars = voiceRecordingVisualizer.querySelectorAll('.visualizer-bar');
+  bars.forEach(bar => {
+    bar.style.animation = 'none';
+    bar.style.height = '4px';
+  });
+}
+
+// Send voice message
+function sendVoiceMessage() {
+  const audioUrl = voiceSendBtn.dataset.audioUrl;
+  const audioBlob = voiceSendBtn.dataset.audioBlob;
+  
+  if (!audioUrl || !audioBlob) {
+    showNotification('No voice recording to send', 'error');
+    return;
+  }
+  
+  // Create voice message
+  const voiceMessage = {
+    id: Date.now().toString(),
+    from: currentUser.id,
+    to: currentChatUser.id,
+    type: 'voice',
+    audioUrl: audioUrl,
+    duration: Math.floor((Date.now() - recordingStartTime) / 1000),
+    timestamp: Date.now()
+  };
+  
+  // Save to localStorage (in production, this would be sent to server)
+  const messages = JSON.parse(localStorage.getItem(`messages_${currentChatUser.id}`) || '[]');
+  messages.push(voiceMessage);
+  localStorage.setItem(`messages_${currentChatUser.id}`, JSON.stringify(messages));
+  
+  // Display voice message
+  displayVoiceMessage(voiceMessage);
+  
+  // Hide recording panel
+  voiceRecordingPanel.style.display = 'none';
+  messageInput.style.display = 'block';
+  
+  // Reset UI
+  voiceStopBtn.style.display = 'flex';
+  voiceSendBtn.style.display = 'none';
+  voiceRecordingStatus.textContent = 'Recording...';
+  voiceRecordingTime.textContent = '00:00';
+  
+  showNotification('Voice message sent', 'success');
+}
+
+// Display voice message
+function displayVoiceMessage(message) {
+  const isSent = message.from === currentUser.id;
+  const messageEl = document.createElement('div');
+  messageEl.className = `message voice-message ${isSent ? 'sent' : ''}`;
+
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const senderName = isSent ? currentUser.name : currentChatUser.name;
+  const duration = formatDuration(message.duration);
+
+  messageEl.innerHTML = `
+    <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
+    <div class="message-content">
+      <div class="voice-message">
+        <div class="voice-message-icon">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M8 1C6.34 1 5 2.34 5 4V8C5 9.66 6.34 11 8 11C9.66 11 11 9.66 11 8V4C11 2.34 9.66 1 8 1Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M6 6V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M10 6V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="M8 6V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div class="voice-message-info">
+          <div class="voice-message-duration">${duration}</div>
+          <div class="voice-message-waveform" id="waveform-${message.id}">
+            ${generateWaveform()}
+          </div>
+        </div>
+        <button class="voice-message-play-btn" onclick="playVoiceMessage('${message.id}', '${message.audioUrl}')">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="message-meta">
+        <div class="message-time">${time}</div>
+      </div>
+    </div>
+  `;
+
+  messagesContainer.appendChild(messageEl);
+  scrollToBottom();
+}
+
+// Generate waveform visualization
+function generateWaveform() {
+  let waveform = '';
+  for (let i = 0; i < 20; i++) {
+    const height = Math.random() * 20 + 4;
+    waveform += `<div class="waveform-bar" style="height: ${height}px;"></div>`;
+  }
+  return waveform;
+}
+
+// Play voice message
+function playVoiceMessage(messageId, audioUrl) {
+  const audio = new Audio(audioUrl);
+  const playBtn = document.querySelector(`[onclick="playVoiceMessage('${messageId}', '${audioUrl}')"]`);
+  const waveform = document.getElementById(`waveform-${messageId}`);
+  
+  if (audio.paused) {
+    audio.play();
+    playBtn.classList.add('playing');
+    playBtn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <rect x="2" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
+        <rect x="7" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
+      </svg>
+    `;
+    
+    // Animate waveform
+    animateWaveform(waveform);
+    
+    audio.onended = () => {
+      playBtn.classList.remove('playing');
+      playBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      `;
+      stopWaveformAnimation(waveform);
+    };
+  } else {
+    audio.pause();
+    playBtn.classList.remove('playing');
+    playBtn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    `;
+    stopWaveformAnimation(waveform);
+  }
+}
+
+// Animate waveform
+function animateWaveform(waveform) {
+  const bars = waveform.querySelectorAll('.waveform-bar');
+  bars.forEach((bar, index) => {
+    bar.style.animation = `visualizerPulse ${0.3 + Math.random() * 0.4}s ease-in-out infinite alternate`;
+    bar.style.animationDelay = `${index * 0.05}s`;
+  });
+}
+
+// Stop waveform animation
+function stopWaveformAnimation(waveform) {
+  const bars = waveform.querySelectorAll('.waveform-bar');
+  bars.forEach(bar => {
+    bar.style.animation = 'none';
+  });
+}
+
+// Format duration
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+}
+
+// ===== GROUP CHATS FUNCTIONALITY =====
+
+// Group chat management
+let groups = JSON.parse(localStorage.getItem('groups') || '[]');
+let selectedMembers = [];
+
+// Group chat elements
+const createGroupBtn = document.getElementById('create-group-btn');
+const createGroupModal = document.getElementById('create-group-modal');
+const closeGroupModal = document.getElementById('close-group-modal');
+const cancelGroupBtn = document.getElementById('cancel-group-btn');
+const createGroupConfirmBtn = document.getElementById('create-group-confirm-btn');
+const groupNameInput = document.getElementById('group-name');
+const groupDescriptionInput = document.getElementById('group-description');
+const memberSearchInput = document.getElementById('member-search');
+const membersList = document.getElementById('members-list');
+const selectedMembersContainer = document.getElementById('selected-members');
+
+// Initialize group chats
+function initializeGroupChats() {
+  setupGroupChatModal();
+  loadGroups();
+}
+
+// Setup group chat modal
+function setupGroupChatModal() {
+  // Open create group modal
+  createGroupBtn.addEventListener('click', () => {
+    createGroupModal.classList.add('active');
+    populateMembersList();
+    groupNameInput.focus();
+  });
+
+  // Close group modal
+  closeGroupModal.addEventListener('click', () => {
+    createGroupModal.classList.remove('active');
+    resetGroupModal();
+  });
+
+  cancelGroupBtn.addEventListener('click', () => {
+    createGroupModal.classList.remove('active');
+    resetGroupModal();
+  });
+
+  // Member search
+  memberSearchInput.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    filterMembers(query);
+  });
+
+  // Create group
+  createGroupConfirmBtn.addEventListener('click', () => {
+    createGroup();
+  });
+}
+
+// Populate members list
+function populateMembersList() {
+  // This would be populated from actual users
+  const users = [
+    { id: '1', name: 'John Doe', username: 'john' },
+    { id: '2', name: 'Jane Smith', username: 'jane' },
+    { id: '3', name: 'Bob Johnson', username: 'bob' },
+    { id: '4', name: 'Alice Brown', username: 'alice' },
+    { id: '5', name: 'Charlie Wilson', username: 'charlie' }
+  ];
+
+  membersList.innerHTML = '';
+  users.forEach(user => {
+    const memberEl = document.createElement('div');
+    memberEl.className = 'member-item';
+    memberEl.dataset.userId = user.id;
+    
+    memberEl.innerHTML = `
+      <div class="member-avatar">${user.name.charAt(0).toUpperCase()}</div>
+      <div class="member-info">
+        <div class="member-name">${user.name}</div>
+        <div class="member-username">@${user.username}</div>
+      </div>
+      <div class="member-checkbox">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
+          <path d="M2 6L4.5 8.5L10 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+    `;
+
+    memberEl.addEventListener('click', () => {
+      toggleMemberSelection(user);
+    });
+
+    membersList.appendChild(memberEl);
+  });
+}
+
+// Filter members
+function filterMembers(query) {
+  const memberItems = membersList.querySelectorAll('.member-item');
+  memberItems.forEach(item => {
+    const name = item.querySelector('.member-name').textContent.toLowerCase();
+    const username = item.querySelector('.member-username').textContent.toLowerCase();
+    
+    if (name.includes(query) || username.includes(query)) {
+      item.style.display = 'flex';
+    } else {
+      item.style.display = 'none';
+    }
+  });
+}
+
+// Toggle member selection
+function toggleMemberSelection(user) {
+  const memberEl = document.querySelector(`[data-user-id="${user.id}"]`);
+  const isSelected = memberEl.classList.contains('selected');
+  
+  if (isSelected) {
+    // Remove from selection
+    memberEl.classList.remove('selected');
+    memberEl.querySelector('.member-checkbox svg').style.display = 'none';
+    selectedMembers = selectedMembers.filter(member => member.id !== user.id);
+  } else {
+    // Add to selection
+    memberEl.classList.add('selected');
+    memberEl.querySelector('.member-checkbox svg').style.display = 'block';
+    selectedMembers.push(user);
+  }
+  
+  updateSelectedMembersDisplay();
+}
+
+// Update selected members display
+function updateSelectedMembersDisplay() {
+  selectedMembersContainer.innerHTML = '';
+  
+  selectedMembers.forEach(member => {
+    const selectedEl = document.createElement('div');
+    selectedEl.className = 'selected-member';
+    selectedEl.innerHTML = `
+      <div class="selected-member-avatar">${member.name.charAt(0).toUpperCase()}</div>
+      <span>${member.name}</span>
+      <button class="remove-member" onclick="removeSelectedMember('${member.id}')">×</button>
+    `;
+    selectedMembersContainer.appendChild(selectedEl);
+  });
+}
+
+// Remove selected member
+function removeSelectedMember(userId) {
+  selectedMembers = selectedMembers.filter(member => member.id !== userId);
+  
+  // Update UI
+  const memberEl = document.querySelector(`[data-user-id="${userId}"]`);
+  if (memberEl) {
+    memberEl.classList.remove('selected');
+    memberEl.querySelector('.member-checkbox svg').style.display = 'none';
+  }
+  
+  updateSelectedMembersDisplay();
+}
+
+// Create group
+function createGroup() {
+  const name = groupNameInput.value.trim();
+  const description = groupDescriptionInput.value.trim();
+  
+  if (!name) {
+    showNotification('Please enter group name', 'error');
+    return;
+  }
+  
+  if (selectedMembers.length === 0) {
+    showNotification('Please select at least one member', 'error');
+    return;
+  }
+  
+  const group = {
+    id: Date.now().toString(),
+    name: name,
+    description: description,
+    members: [...selectedMembers, { id: currentUser.id, name: currentUser.name, username: currentUser.username }],
+    createdBy: currentUser.id,
+    createdAt: Date.now(),
+    isGroup: true
+  };
+  
+  groups.push(group);
+  localStorage.setItem('groups', JSON.stringify(groups));
+  
+  // Add group to chats list
+  addGroupToChatsList(group);
+  
+  // Close modal
+  createGroupModal.classList.remove('active');
+  resetGroupModal();
+  
+  showNotification('Group created successfully', 'success');
+}
+
+// Add group to chats list
+function addGroupToChatsList(group) {
+  const chatItem = document.createElement('div');
+  chatItem.className = 'chat-item group-chat';
+  chatItem.dataset.groupId = group.id;
+  
+  const memberCount = group.members.length;
+  const groupInitials = group.name.split(' ').map(word => word.charAt(0)).join('').substring(0, 2);
+  
+  chatItem.innerHTML = `
+    <div class="group-chat-header">
+      <div class="group-avatar ${memberCount > 2 ? 'multiple' : ''}">
+        ${groupInitials}
+      </div>
+      <div class="group-info">
+        <h3>${group.name}</h3>
+        <span class="group-members-count">${memberCount} members</span>
+      </div>
+    </div>
+  `;
+  
+  chatItem.addEventListener('click', () => openGroupChat(group));
+  chatsList.appendChild(chatItem);
+}
+
+// Open group chat
+function openGroupChat(group) {
+  currentChatUser = group;
+  
+  // Update active state
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  document.querySelector(`[data-group-id="${group.id}"]`)?.classList.add('active');
+  
+  // Show chat container
+  emptyState.style.display = 'none';
+  chatContainer.style.display = 'flex';
+  
+  // Update chat header
+  chatName.textContent = group.name;
+  chatAvatar.textContent = group.name.split(' ').map(word => word.charAt(0)).join('').substring(0, 2);
+  chatStatus.textContent = `${group.members.length} members`;
+  chatStatus.style.color = 'var(--text-secondary)';
+  
+  // Load group messages
+  loadGroupMessages(group.id);
+}
+
+// Load group messages
+function loadGroupMessages(groupId) {
+  const messages = JSON.parse(localStorage.getItem(`groupMessages_${groupId}`) || '[]');
+  messagesContainer.innerHTML = '';
+  
+  messages.forEach(msg => {
+    displayGroupMessage(msg, groupId);
+  });
+  scrollToBottom();
+}
+
+// Display group message
+function displayGroupMessage(message, groupId) {
+  const isSent = message.from === currentUser.id;
+  const messageEl = document.createElement('div');
+  messageEl.className = `message ${isSent ? 'sent' : ''}`;
+
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  const sender = message.sender || { name: 'Unknown' };
+  const senderName = isSent ? currentUser.name : sender.name;
+
+  messageEl.innerHTML = `
+    <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
+    <div class="message-content">
+      ${!isSent ? `<div class="message-sender">${senderName}</div>` : ''}
+      <div class="message-bubble">${escapeHtml(message.text)}</div>
+      <div class="message-meta">
+        <div class="message-time">${time}</div>
+      </div>
+    </div>
+  `;
+
+  messagesContainer.appendChild(messageEl);
+}
+
+// Send group message
+function sendGroupMessage() {
+  const text = messageInput.value.trim();
+  
+  if (!text || !currentChatUser || !currentChatUser.isGroup) return;
+
+  const message = {
+    id: Date.now().toString(),
+    from: currentUser.id,
+    sender: currentUser.name,
+    text: text,
+    timestamp: Date.now(),
+    groupId: currentChatUser.id
+  };
+
+  // Save to localStorage
+  const messages = JSON.parse(localStorage.getItem(`groupMessages_${currentChatUser.id}`) || '[]');
+  messages.push(message);
+  localStorage.setItem(`groupMessages_${currentChatUser.id}`, JSON.stringify(messages));
+
+  displayGroupMessage(message, currentChatUser.id);
+  messageInput.value = '';
+  scrollToBottom();
+}
+
+// Reset group modal
+function resetGroupModal() {
+  groupNameInput.value = '';
+  groupDescriptionInput.value = '';
+  memberSearchInput.value = '';
+  selectedMembers = [];
+  selectedMembersContainer.innerHTML = '';
+  
+  // Reset member selections
+  document.querySelectorAll('.member-item').forEach(item => {
+    item.classList.remove('selected');
+    item.querySelector('.member-checkbox svg').style.display = 'none';
+  });
+}
+
+// Load groups
+function loadGroups() {
+  groups.forEach(group => {
+    addGroupToChatsList(group);
+  });
+}
+
+// ===== FAVORITES IN CHATS FUNCTIONALITY =====
+
+// Favorites chat management
+let currentFavoritesChat = null;
+
+// Favorites chat elements
+const favoritesChatItem = document.getElementById('favorites-chat-item');
+
+// Initialize favorites in chats
+function initializeFavoritesInChats() {
+  setupFavoritesChat();
+}
+
+// Setup favorites chat
+function setupFavoritesChat() {
+  // Open favorites chat
+  favoritesChatItem.addEventListener('click', () => {
+    openFavoritesChat();
+  });
+}
+
+// Open favorites chat
+function openFavoritesChat() {
+  currentFavoritesChat = { id: 'favorites', name: 'Favorites', isFavorites: true };
+  currentChatUser = currentFavoritesChat;
+  
+  // Update active state
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  favoritesChatItem.classList.add('active');
+  
+  // Show chat container
+  emptyState.style.display = 'none';
+  chatContainer.style.display = 'flex';
+  
+  // Update chat header
+  chatName.textContent = 'Favorites';
+  chatAvatar.innerHTML = `
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M20.84 4.61C20.33 4.1 19.69 3.8 19 3.8C18.31 3.8 17.67 4.1 17.16 4.61L12 9.77L6.84 4.61C6.33 4.1 5.69 3.8 5 3.8C4.31 3.8 3.67 4.1 3.16 4.61C2.65 5.12 2.35 5.76 2.35 6.45C2.35 7.14 2.65 7.78 3.16 8.29L8.32 13.45L12 17.13L15.68 13.45L20.84 8.29C21.35 7.78 21.65 7.14 21.65 6.45C21.65 5.76 21.35 5.12 20.84 4.61Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+  chatStatus.textContent = 'Personal notes';
+  chatStatus.style.color = 'var(--accent-primary)';
+  
+  // Load favorites messages
+  loadFavoritesMessages();
+}
+
+// Load favorites messages
+function loadFavoritesMessages() {
+  const messages = JSON.parse(localStorage.getItem('favoritesMessages') || '[]');
+  messagesContainer.innerHTML = '';
+  
+  if (messages.length === 0) {
+    messagesContainer.innerHTML = `
+      <div class="favorites-welcome">
+        <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+          <path d="M40 4L48 16L62 18L52 28L56 42L40 36L24 42L28 28L18 18L32 16L40 4Z" stroke="url(#gradient3)" stroke-width="2" stroke-linejoin="round"/>
+          <defs>
+            <linearGradient id="gradient3" x1="0" y1="0" x2="80" y2="80">
+              <stop offset="0%" stop-color="#667eea"/>
+              <stop offset="100%" stop-color="#764ba2"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <h3>Welcome to Favorites!</h3>
+        <p>This is your personal space to save important messages, notes, and thoughts.</p>
+      </div>
+    `;
+  } else {
+    messages.forEach(message => {
+      displayFavoritesMessage(message);
+    });
+  }
+  scrollToBottom();
+}
+
+// Display favorites message
+function displayFavoritesMessage(message) {
+  const messageEl = document.createElement('div');
+  messageEl.className = 'message favorites-message sent';
+  
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  
+  messageEl.innerHTML = `
+    <div class="message-avatar">⭐</div>
+    <div class="message-content">
+      <div class="message-bubble">${escapeHtml(message.text)}</div>
+      <div class="message-meta">
+        <div class="message-time">${time}</div>
+        <div class="favorites-actions">
+          <button class="favorites-action-btn" onclick="deleteFavoritesMessage('${message.id}')" title="Delete">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M11 3.5L8.5 6L11 8.5M3 3.5L5.5 6L3 8.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  messagesContainer.appendChild(messageEl);
+}
+
+// Delete favorites message
+function deleteFavoritesMessage(messageId) {
+  if (confirm('Are you sure you want to delete this message from favorites?')) {
+    const messages = JSON.parse(localStorage.getItem('favoritesMessages') || '[]');
+    const updatedMessages = messages.filter(msg => msg.id !== messageId);
+    localStorage.setItem('favoritesMessages', JSON.stringify(updatedMessages));
+    
+    // Reload favorites messages
+    loadFavoritesMessages();
+    
+    showNotification('Message removed from favorites', 'success');
+  }
+}
+
+// Send favorites message
+function sendFavoritesMessage() {
+  const text = messageInput.value.trim();
+  
+  if (!text || !currentFavoritesChat) return;
+  
+  const message = {
+    id: Date.now().toString(),
+    text: text,
+    timestamp: Date.now()
+  };
+  
+  // Save to localStorage
+  const messages = JSON.parse(localStorage.getItem('favoritesMessages') || '[]');
+  messages.push(message);
+  localStorage.setItem('favoritesMessages', JSON.stringify(messages));
+  
+  displayFavoritesMessage(message);
+  messageInput.value = '';
+  scrollToBottom();
+}
+
+// Override send message function to handle favorites
+const originalSendMessageForFavorites = sendMessage;
+function sendMessageForFavorites() {
+  if (currentFavoritesChat && currentFavoritesChat.isFavorites) {
+    sendFavoritesMessage();
+  } else {
+    originalSendMessageForFavorites();
+  }
+}
+
+// ===== MESSAGE EDITING AND DELETION =====
+
+// Edit message
+function editMessage(messageId) {
+  const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+  const messageBubble = messageEl.querySelector('.message-bubble');
+  const originalText = messageBubble.textContent;
+  
+  // Create edit input
+  const editInput = document.createElement('input');
+  editInput.type = 'text';
+  editInput.value = originalText;
+  editInput.className = 'edit-input';
+  
+  // Replace message bubble with input
+  messageBubble.style.display = 'none';
+  messageBubble.parentNode.insertBefore(editInput, messageBubble);
+  editInput.focus();
+  editInput.select();
+  
+  // Handle edit completion
+  editInput.addEventListener('blur', () => {
+    const newText = editInput.value.trim();
+    if (newText && newText !== originalText) {
+      socket.emit('message:edit', { messageId, newText });
+      messageBubble.textContent = newText;
+      messageBubble.style.display = 'block';
+      editInput.remove();
+    } else {
+      messageBubble.style.display = 'block';
+      editInput.remove();
+    }
+  });
+  
+  editInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      editInput.blur();
+    }
+  });
+}
+
+// Delete message
+function deleteMessage(messageId) {
+  if (confirm('Are you sure you want to delete this message?')) {
+    socket.emit('message:delete', { messageId });
+  }
+}
+
+// Pin message
+function pinMessage(messageId) {
+  socket.emit('message:pin', { messageId, chatId: currentChatUser.id });
+  showNotification('Message pinned', 'success');
+}
+
+// ===== MESSAGE REACTIONS =====
+
+// Show reaction picker
+function showReactionPicker(messageId) {
+  const emojis = ['👍', '👎', '❤️', '😂', '😮', '😢', '😡', '🎉'];
+  
+  const picker = document.createElement('div');
+  picker.className = 'reaction-picker';
+  picker.innerHTML = emojis.map(emoji => `
+    <button class="emoji-btn" onclick="addReaction('${messageId}', '${emoji}')">${emoji}</button>
+  `).join('');
+  
+  // Position picker
+  const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+  const rect = messageEl.getBoundingClientRect();
+  picker.style.position = 'absolute';
+  picker.style.left = `${rect.left}px`;
+  picker.style.top = `${rect.top - 50}px`;
+  
+  document.body.appendChild(picker);
+  
+  // Remove picker when clicking outside
+  setTimeout(() => {
+    document.addEventListener('click', function removePicker() {
+      picker.remove();
+      document.removeEventListener('click', removePicker);
+    });
+  }, 100);
+}
+
+// Add reaction
+function addReaction(messageId, emoji) {
+  socket.emit('message:react', { messageId, emoji });
+}
+
+// Toggle reaction
+function toggleReaction(messageId, emoji) {
+  socket.emit('message:react', { messageId, emoji });
+}
+
+// ===== MESSAGE REPLIES =====
+
+// Start reply
+function startReply(messageEl) {
+  const messageId = messageEl.dataset.messageId;
+  const messageText = messageEl.querySelector('.message-bubble').textContent;
+  const messageTime = messageEl.querySelector('.message-time').textContent;
+  
+  // Add reply indicator to input
+  const replyIndicator = document.createElement('div');
+  replyIndicator.className = 'reply-indicator';
+  replyIndicator.innerHTML = `
+    <div class="reply-preview">
+      <div class="reply-text">${escapeHtml(messageText)}</div>
+      <div class="reply-time">${messageTime}</div>
+    </div>
+    <button class="reply-cancel" onclick="cancelReply()">×</button>
+  `;
+  
+  messageInput.parentNode.insertBefore(replyIndicator, messageInput);
+  messageInput.focus();
+  
+  // Store reply message ID
+  messageInput.dataset.replyTo = messageId;
+}
+
+// Cancel reply
+function cancelReply() {
+  const replyIndicator = document.querySelector('.reply-indicator');
+  if (replyIndicator) {
+    replyIndicator.remove();
+  }
+  delete messageInput.dataset.replyTo;
+}
+
+// ===== NOTIFICATIONS =====
+
+// Request notification permission
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+// Show notification
+function showDesktopNotification(title, body, icon) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, {
+      body: body,
+      icon: icon || '/favicon.ico'
+    });
+  }
+}
+
+// ===== CHANNELS =====
+
+// Channel elements
+const createChannelBtn = document.getElementById('create-channel-btn');
+const createChannelModal = document.getElementById('create-channel-modal');
+const closeChannelModal = document.getElementById('close-channel-modal');
+const cancelChannelBtn = document.getElementById('cancel-channel-btn');
+const createChannelConfirmBtn = document.getElementById('create-channel-confirm-btn');
+const channelNameInput = document.getElementById('channel-name');
+const channelDescriptionInput = document.getElementById('channel-description');
+
+// Initialize channels
+function initializeChannels() {
+  setupChannelModal();
+}
+
+// Setup channel modal
+function setupChannelModal() {
+  // Open create channel modal
+  createChannelBtn.addEventListener('click', () => {
+    createChannelModal.classList.add('active');
+    channelNameInput.focus();
+  });
+
+  // Close channel modal
+  closeChannelModal.addEventListener('click', () => {
+    createChannelModal.classList.remove('active');
+    resetChannelModal();
+  });
+
+  cancelChannelBtn.addEventListener('click', () => {
+    createChannelModal.classList.remove('active');
+    resetChannelModal();
+  });
+
+  // Create channel
+  createChannelConfirmBtn.addEventListener('click', () => {
+    createChannel();
+  });
+}
+
+// Create channel
+function createChannel() {
+  const name = channelNameInput.value.trim();
+  const description = channelDescriptionInput.value.trim();
+  
+  if (!name) {
+    showNotification('Please enter channel name', 'error');
+    return;
+  }
+  
+  socket.emit('channel:create', { name, description });
+  
+  createChannelModal.classList.remove('active');
+  resetChannelModal();
+}
+
+// Reset channel modal
+function resetChannelModal() {
+  channelNameInput.value = '';
+  channelDescriptionInput.value = '';
+}
+
+// Create channel
+function createChannel(name, description) {
+  socket.emit('channel:create', { name, description });
+}
+
+// Join channel
+function joinChannel(channelId) {
+  socket.emit('channel:join', { channelId });
+}
+
+// Send channel message
+function sendChannelMessage(channelId, text, replyTo) {
+  socket.emit('channel:message', { channelId, text, replyTo });
+}
+
+// ===== SOCKET EVENT HANDLERS =====
+
+// Message edited
+socket.on('message:edited', (message) => {
+  const messageEl = document.querySelector(`[data-message-id="${message.id}"]`);
+  if (messageEl) {
+    const messageBubble = messageEl.querySelector('.message-bubble');
+    messageBubble.textContent = message.text;
+    
+    // Add edited indicator
+    const messageMeta = messageEl.querySelector('.message-meta');
+    const editedIndicator = document.createElement('span');
+    editedIndicator.className = 'edited-indicator';
+    editedIndicator.textContent = 'edited';
+    messageMeta.appendChild(editedIndicator);
+  }
+});
+
+// Message deleted
+socket.on('message:deleted', (message) => {
+  const messageEl = document.querySelector(`[data-message-id="${message.id}"]`);
+  if (messageEl) {
+    const messageBubble = messageEl.querySelector('.message-bubble');
+    messageBubble.textContent = 'This message was deleted';
+    messageBubble.classList.add('deleted-message');
+    messageEl.classList.add('deleted');
+  }
+});
+
+// Message reacted
+socket.on('message:reacted', (data) => {
+  const messageEl = document.querySelector(`[data-message-id="${data.messageId}"]`);
+  if (messageEl) {
+    const reactionsContainer = messageEl.querySelector('.message-reactions');
+    if (reactionsContainer) {
+      reactionsContainer.innerHTML = Object.entries(data.reactions).map(([emoji, userIds]) => `
+        <button class="reaction-btn" onclick="toggleReaction('${data.messageId}', '${emoji}')">
+          <span class="reaction-emoji">${emoji}</span>
+          <span class="reaction-count">${userIds.length}</span>
+        </button>
+      `).join('');
+    } else {
+      // Create reactions container if it doesn't exist
+      const reactionsHtml = `
+        <div class="message-reactions">
+          ${Object.entries(data.reactions).map(([emoji, userIds]) => `
+            <button class="reaction-btn" onclick="toggleReaction('${data.messageId}', '${emoji}')">
+              <span class="reaction-emoji">${emoji}</span>
+              <span class="reaction-count">${userIds.length}</span>
+            </button>
+          `).join('')}
+        </div>
+      `;
+      messageEl.querySelector('.message-content').insertAdjacentHTML('beforeend', reactionsHtml);
+    }
+  }
+});
+
+// Channel created
+socket.on('channel:created', (channel) => {
+  showNotification('Channel created successfully', 'success');
+  // Add channel to UI
+  addChannelToUI(channel);
+});
+
+// Channel message received
+socket.on('channel:message:received', (message) => {
+  if (currentChatUser && currentChatUser.isChannel && currentChatUser.id === message.channelId) {
+    displayMessage(message);
+    scrollToBottom();
+  }
+});
+
+// Message pinned
+socket.on('message:pinned', (data) => {
+  showNotification('Message pinned', 'success');
+});
+
+// Message unpinned
+socket.on('message:unpinned', (data) => {
+  showNotification('Message unpinned', 'success');
+});
+
+// Pinned messages list
+socket.on('messages:pinned:list', (messages) => {
+  // Display pinned messages in a special section
+  displayPinnedMessages(messages);
+});
+
+// ===== UTILITY FUNCTIONS =====
+
+// Add channel to UI
+function addChannelToUI(channel) {
+  const chatItem = document.createElement('div');
+  chatItem.className = 'chat-item channel-chat';
+  chatItem.dataset.channelId = channel.id;
+  
+  chatItem.innerHTML = `
+    <div class="channel-header">
+      <div class="channel-avatar">#</div>
+      <div class="channel-info">
+        <h3>${channel.name}</h3>
+        <span class="channel-members-count">${channel.members.length} members</span>
+      </div>
+    </div>
+  `;
+  
+  chatItem.addEventListener('click', () => openChannelChat(channel));
+  chatsList.appendChild(chatItem);
+}
+
+// Open channel chat
+function openChannelChat(channel) {
+  currentChatUser = { ...channel, isChannel: true };
+  
+  // Update active state
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  document.querySelector(`[data-channel-id="${channel.id}"]`)?.classList.add('active');
+  
+  // Show chat container
+  emptyState.style.display = 'none';
+  chatContainer.style.display = 'flex';
+  
+  // Update chat header
+  chatName.textContent = `#${channel.name}`;
+  chatAvatar.textContent = '#';
+  chatStatus.textContent = `${channel.members.length} members`;
+  chatStatus.style.color = 'var(--text-secondary)';
+  
+  // Load channel messages
+  loadChannelMessages(channel.id);
+}
+
+// Load channel messages
+function loadChannelMessages(channelId) {
+  const channelMessages = messages.filter(m => m.channelId === channelId);
+  messagesContainer.innerHTML = '';
+  
+  channelMessages.forEach(msg => {
+    displayMessage(msg);
+  });
+  scrollToBottom();
+}
+
+// Display pinned messages
+function displayPinnedMessages(messages) {
+  // This would display pinned messages in a special section
+  console.log('Pinned messages:', messages);
+}
+
+// Override send message to handle replies
+const originalSendMessageForReplies = sendMessage;
+function sendMessageWithReplies() {
+  const text = messageInput.value.trim();
+  const replyTo = messageInput.dataset.replyTo;
+  
+  if (!text || !currentChatUser) return;
+
+  if (currentChatUser.isChannel) {
+    socket.emit('channel:message', {
+      channelId: currentChatUser.id,
+      text,
+      replyTo
+    });
+  } else {
+    socket.emit('message:send', {
+      to: currentChatUser.id,
+      text,
+      replyTo
+    });
+  }
+
+  messageInput.value = '';
+  if (replyTo) {
+    cancelReply();
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initializeFolders();
+  initializeSecretChats();
+  initializeMessageForwarding();
+  initializeVoiceMessages();
+  initializeGroupChats();
+  initializeFavoritesInChats();
+  initializeChannels();
+  requestNotificationPermission();
+});
