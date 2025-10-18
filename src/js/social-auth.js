@@ -192,6 +192,7 @@ function registerSocketHandlers() {
       }
       
       window.Core.currentUser = data.user;
+      console.log('Set currentUser in social auth:', data.user);
       window.Core.updateUserDisplay(data.user);
       
       // Switch to chat screen
@@ -230,6 +231,7 @@ function registerSocketHandlers() {
       console.log('Token authentication successful:', data);
       
       window.Core.currentUser = data.user;
+      console.log('Set currentUser in token auth:', data.user);
       localStorage.setItem('userData', JSON.stringify(data.user));
       
       // Switch to chat screen

@@ -127,6 +127,7 @@ async function loadUsersFromDatabase() {
       });
     });
     console.log(`Loaded ${users.size} users from database`);
+    console.log('Users in memory:', Array.from(users.keys()));
   } catch (error) {
     console.error('Error loading users from database:', error);
     console.log('Continuing without loading users from database');
@@ -474,6 +475,7 @@ io.on('connection', (socket) => {
         avatarUrl: user.avatar_url,
         createdAt: user.created_at
       });
+      console.log('Added user to memory storage:', user.id, user.name);
 
       onlineUsers.set(socket.id, user.id);
       
@@ -497,6 +499,7 @@ io.on('connection', (socket) => {
         username: u.username,
         online: Array.from(onlineUsers.values()).includes(u.id)
       }));
+      console.log('Sending users:list to client, count:', userList.length);
       socket.emit('users:list', userList);
       io.emit('users:list', userList);
       

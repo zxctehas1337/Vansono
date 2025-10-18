@@ -43,12 +43,15 @@ const chatStatus = document.getElementById('chat-status');
 // Handle URL routing
 function handleRouting() {
   const path = window.location.pathname;
+  console.log('handleRouting called with path:', path);
   
   if (path === '/chats' || path === '/') {
     // Show chats list
+    console.log('Routing to chats list');
     showChatsList();
   } else if (path.startsWith('/chat/')) {
     const userId = path.split('/chat/')[1];
+    console.log('Routing to chat with userId:', userId);
     if (userId && currentUser) {
       // Find user and open chat
       const user = users.find(u => u.id === userId);
@@ -56,6 +59,7 @@ function handleRouting() {
         openChat(user);
       } else {
         // User not found, redirect to chats
+        console.log('User not found, redirecting to chats');
         window.history.pushState({}, '', '/chats');
         showChatsList();
       }
@@ -65,11 +69,19 @@ function handleRouting() {
 
 // Show chats list
 function showChatsList() {
+  console.log('showChatsList called, chatScreen active:', chatScreen && chatScreen.classList.contains('active'));
+  
   if (chatScreen && chatScreen.classList.contains('active')) {
     // Hide any open chat
     chatContainer.style.display = 'none';
     emptyState.style.display = 'block';
     chatsList.style.display = 'block';
+    
+    console.log('Chat elements visibility:', {
+      chatContainer: chatContainer.style.display,
+      emptyState: emptyState.style.display,
+      chatsList: chatsList.style.display
+    });
     
     // Update URL
     window.history.pushState({}, '', '/chats');
@@ -203,11 +215,14 @@ function updateUserDisplay(user) {
 
 // Initialize chat
 function initializeChat() {
+  console.log('initializeChat called, currentUser:', currentUser);
+  
   if (authScreen) authScreen.classList.remove('active');
   if (chatScreen) chatScreen.classList.add('active');
   
   if (currentUser) {
     updateUserDisplay(currentUser);
+    console.log('User display updated');
   } else {
     console.warn('No current user available for display');
   }
@@ -220,6 +235,8 @@ function initializeChat() {
 
 // Users list
 socket.on('users:list', (usersList) => {
+  console.log('Received users:list event:', usersList);
+  
   if (!chatsList) {
     console.warn('Chats list element not found');
     return;
@@ -234,6 +251,8 @@ socket.on('users:list', (usersList) => {
     console.warn('Invalid users array received');
     return;
   }
+  
+  console.log('Processing users list, count:', usersList.length);
   
   usersList.forEach(user => {
     if (!user || !user.id || !user.name) {
@@ -269,6 +288,8 @@ socket.on('users:list', (usersList) => {
     chatItem.addEventListener('click', () => openChat(user));
     chatsList.appendChild(chatItem);
   });
+  
+  console.log('Added chat items to DOM, total:', chatsList.children.length);
 });
 
 // Search results
