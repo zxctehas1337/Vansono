@@ -22,7 +22,7 @@
     
     /* Screen display rules */
     .screen { 
-      display: none !important;
+      display: none;
       width: 100%;
       height: 100vh;
     }
@@ -30,6 +30,8 @@
       display: flex !important;
       visibility: visible !important;
       opacity: 1 !important;
+      position: relative !important;
+      z-index: 1 !important;
     }
     
     /* Force chat screen visibility */

@@ -35,7 +35,7 @@ body {
 
 /* Screens */
 .screen {
-  display: none !important;
+  display: none;
   width: 100%;
   height: 100vh;
   animation: fadeIn 0.3s ease;

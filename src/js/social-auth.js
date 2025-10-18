@@ -195,6 +195,22 @@ function registerSocketHandlers() {
       console.log('Set currentUser in social auth:', data.user);
       window.Core.updateUserDisplay(data.user);
       
+      // Switch screens manually first
+      const authScreen = document.getElementById('auth-screen');
+      const chatScreen = document.getElementById('chat-screen');
+      
+      if (authScreen) {
+        authScreen.classList.remove('active');
+        authScreen.style.display = 'none';
+        console.log('Auth screen hidden in social auth');
+      }
+      
+      if (chatScreen) {
+        chatScreen.classList.add('active');
+        chatScreen.style.display = 'flex';
+        console.log('Chat screen shown in social auth');
+      }
+      
       // Initialize chat interface (this will handle screen switching)
       if (window.Core && window.Core.initializeChat) {
         window.Core.initializeChat();
@@ -218,6 +234,20 @@ function registerSocketHandlers() {
       window.Core.currentUser = data.user;
       console.log('Set currentUser in token auth:', data.user);
       localStorage.setItem('userData', JSON.stringify(data.user));
+      
+      // Switch screens manually first
+      const authScreen = document.getElementById('auth-screen');
+      const chatScreen = document.getElementById('chat-screen');
+      
+      if (authScreen) {
+        authScreen.classList.remove('active');
+        authScreen.style.display = 'none';
+      }
+      
+      if (chatScreen) {
+        chatScreen.classList.add('active');
+        chatScreen.style.display = 'flex';
+      }
       
       // Initialize chat interface (this will handle screen switching)
       if (window.Core && window.Core.initializeChat) {

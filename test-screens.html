@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Switch Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #0f0f0f;
+            color: white;
+            height: 100vh;
+        }
+        .screen {
+            display: none;
+            width: 100%;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .screen.active {
+            display: flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+        .auth-screen {
+            background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .chat-screen {
+            background: #0f0f0f;
+            flex-direction: row;
+        }
+        .sidebar {
+            width: 360px;
+            background: #1a1a1a;
+            border-right: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            opacity: 0.9;
+        }
+        .test-controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            gap: 10px;
+        }
+        .status {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Test Controls -->
+    <div class="test-controls">
+        <button onclick="showAuthScreen()">Show Auth</button>
+        <button onclick="showChatScreen()">Show Chat</button>
+        <button onclick="simulateLogin()">Simulate Login</button>
+    </div>
+
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="screen auth-screen active">
+        <h1>🔐 Authentication Screen</h1>
+        <p>This is the authentication screen</p>
+        <button onclick="simulateLogin()">Login with Test User</button>
+    </div>
+
+    <!-- Chat Screen -->
+    <div id="chat-screen" class="screen chat-screen">
+        <div class="sidebar">
+            <div style="padding: 20px; border-bottom: 1px solid #333;">
+                <h3>💬 Chats</h3>
+                <div>User: Test User (@testuser)</div>
+            </div>
+            <div style="flex: 1; padding: 20px;">
+                <div style="color: #a0a0a0;">No chats available</div>
+            </div>
+        </div>
+        <div class="chat-main">
+            <h2>✅ Chat Screen Working!</h2>
+            <p>Select a chat to start messaging</p>
+        </div>
+    </div>
+
+    <!-- Status Display -->
+    <div class="status" id="status">
+        Current screen: auth-screen
+    </div>
+
+    <script>
+        // Screen switching functions
+        function showAuthScreen() {
+            console.log('Switching to auth screen');
+            
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+                screen.style.display = 'none';
+            });
+            
+            // Show auth screen
+            const authScreen = document.getElementById('auth-screen');
+            authScreen.classList.add('active');
+            authScreen.style.display = 'flex';
+            
+            updateStatus('auth-screen');
+        }
+
+        function showChatScreen() {
+            console.log('Switching to chat screen');
+            
+            // Hide all screens
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+                screen.style.display = 'none';
+            });
+            
+            // Show chat screen
+            const chatScreen = document.getElementById('chat-screen');
+            chatScreen.classList.add('active');
+            chatScreen.style.cssText = `
+                display: flex !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                width: 100% !important;
+                height: 100vh !important;
+                position: absolute !important;
+                top: 0 !important;
+                left: 0 !important;
+                background: #0f0f0f !important;
+                flex-direction: row !important;
+            `;
+            
+            updateStatus('chat-screen');
+        }
+
+        function simulateLogin() {
+            console.log('Simulating login process...');
+            updateStatus('Logging in...');
+            
+            setTimeout(() => {
+                console.log('Login successful, switching to chat');
+                showChatScreen();
+            }, 1000);
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = 'Current screen: ' + message;
+        }
+
+        // Debug info
+        console.log('Screen test loaded');
+        console.log('Auth screen:', document.getElementById('auth-screen'));
+        console.log('Chat screen:', document.getElementById('chat-screen'));
+        
+        // Log computed styles
+        setTimeout(() => {
+            const authScreen = document.getElementById('auth-screen');
+            const chatScreen = document.getElementById('chat-screen');
+            
+            console.log('Auth screen computed style:', {
+                display: getComputedStyle(authScreen).display,
+                visibility: getComputedStyle(authScreen).visibility,
+                opacity: getComputedStyle(authScreen).opacity
+            });
+            
+            console.log('Chat screen computed style:', {
+                display: getComputedStyle(chatScreen).display,
+                visibility: getComputedStyle(chatScreen).visibility,
+                opacity: getComputedStyle(chatScreen).opacity
+            });
+        }, 100);
+    </script>
+</body>
+</html>
+</script>
+</body>
+</html>

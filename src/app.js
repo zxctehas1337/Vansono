@@ -8,38 +8,47 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize all modules in correct order
   try {
     // Core module must be initialized first
-    if (window.Core && window.Core.initializeCore) {
-      window.Core.initializeCore();
+    if (typeof initializeCore === 'function') {
+      initializeCore();
+      console.log('Core module initialized');
+    } else {
+      console.error('Core module initializeCore function not found');
     }
     
     // Auth module
     if (window.Auth && window.Auth.initializeAuth) {
       window.Auth.initializeAuth();
+      console.log('Auth module initialized');
+    } else {
+      console.warn('Auth module initializeAuth function not found');
     }
     
-    // Chat module
-    if (window.Chat && window.Chat.initializeChat) {
-      window.Chat.initializeChat();
-    }
-    
-    // Call module
-    if (window.Call && window.Call.initializeCall) {
-      window.Call.initializeCall();
-    }
-    
-    // UI module
-    if (window.UI && window.UI.initializeUI) {
-      window.UI.initializeUI();
-    }
-    
-    // Features module
-    if (window.Features && window.Features.initializeFeatures) {
-      window.Features.initializeFeatures();
-    }
+    // Chat module initialization is handled by Core module after authentication
     
     // Social Auth module
     if (window.SocialAuth && window.SocialAuth.initializeSocialAuth) {
       window.SocialAuth.initializeSocialAuth();
+      console.log('Social Auth module initialized');
+    } else {
+      console.warn('Social Auth module initializeSocialAuth function not found');
+    }
+    
+    // UI module (if exists)
+    if (window.UI && window.UI.initializeUI) {
+      window.UI.initializeUI();
+      console.log('UI module initialized');
+    }
+    
+    // Features module (if exists)
+    if (window.Features && window.Features.initializeFeatures) {
+      window.Features.initializeFeatures();
+      console.log('Features module initialized');
+    }
+    
+    // Call module (if exists)
+    if (window.Call && window.Call.initializeCall) {
+      window.Call.initializeCall();
+      console.log('Call module initialized');
     }
     
   } catch (error) {

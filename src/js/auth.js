@@ -124,6 +124,21 @@ function registerAuthHandlers() {
         localStorage.setItem('userData', JSON.stringify(data.user));
       }
       window.Core.currentUser = data.user;
+      
+      // Switch screens manually
+      const authScreen = document.getElementById('auth-screen');
+      const chatScreen = document.getElementById('chat-screen');
+      
+      if (authScreen) {
+        authScreen.classList.remove('active');
+        authScreen.style.display = 'none';
+      }
+      
+      if (chatScreen) {
+        chatScreen.classList.add('active');
+        chatScreen.style.display = 'flex';
+      }
+      
       window.Core.updateUserDisplay(data.user);
       window.Core.initializeChat();
     });
@@ -131,9 +146,27 @@ function registerAuthHandlers() {
     socket.on('auth:success', (data) => {
       window.Core.currentUser = data.user;
       localStorage.setItem('userData', JSON.stringify(data.user));
-      document.getElementById('auth-screen').classList.remove('active');
-      document.getElementById('chat-screen').classList.add('active');
+      
+      // Switch screens manually
+      const authScreen = document.getElementById('auth-screen');
+      const chatScreen = document.getElementById('chat-screen');
+      
+      if (authScreen) {
+        authScreen.classList.remove('active');
+        authScreen.style.display = 'none';
+      }
+      
+      if (chatScreen) {
+        chatScreen.classList.add('active');
+        chatScreen.style.display = 'flex';
+      }
+      
       window.Core.updateUserDisplay(data.user);
+      
+      // Initialize chat interface
+      if (window.Core && window.Core.initializeChat) {
+        window.Core.initializeChat();
+      }
     });
 
     socket.on('auth:error', () => {
