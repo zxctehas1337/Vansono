@@ -243,12 +243,17 @@ window.Core.socket.on('messages:history', (messages) => {
 
 // Receive new message
 window.Core.socket.on('message:received', (message) => {
+  // Only handle messages from other users to avoid duplication
+  if (message.from === window.Core.currentUser.id) {
+    return; // Skip messages from current user as they're handled by message:sent
+  }
+  
   if (window.Core.currentChatUser && message.from === window.Core.currentChatUser.id) {
     displayMessage(message);
     window.Core.scrollToBottom();
     
-    // Play notification sound for incoming messages (not from current user)
-    if (message.from !== window.Core.currentUser.id && window.Call && window.Call.playNotificationSound) {
+    // Play notification sound for incoming messages
+    if (window.Call && window.Call.playNotificationSound) {
       window.Call.playNotificationSound('notification');
     }
   } else {
@@ -260,7 +265,7 @@ window.Core.socket.on('message:received', (message) => {
     );
     
     // Play notification sound for messages from other chats
-    if (message.from !== window.Core.currentUser.id && window.Call && window.Call.playNotificationSound) {
+    if (window.Call && window.Call.playNotificationSound) {
       window.Call.playNotificationSound('notification');
     }
   }
@@ -268,12 +273,9 @@ window.Core.socket.on('message:received', (message) => {
 
 // Message sent confirmation
 window.Core.socket.on('message:sent', (message) => {
-  // Only display non-voice messages here
-  // Voice messages will be displayed via message:received to avoid duplication
-  if (message.type !== 'voice') {
-    displayMessage(message);
-    window.Core.scrollToBottom();
-  }
+  // Display all sent messages, including voice messages
+  displayMessage(message);
+  window.Core.scrollToBottom();
 });
 
 // Message read confirmation

@@ -2878,3 +2878,46 @@ textarea:focus {
     opacity: 1;
   }
 }
+
+
+/* Video Call Enhancements */
+.local-video {
+  border: 2px solid var(--accent-primary);
+  transition: all 0.3s ease;
+}
+
+.local-video:hover {
+  border-color: var(--accent-secondary);
+}
+
+.remote-video {
+  transition: all 0.3s ease;
+}
+
+/* Camera off state */
+.camera-off {
+  background-color: var(--error) !important;
+  opacity: 0.7 !important;
+}
+
+.camera-off svg {
+  filter: brightness(0) invert(1);
+}
+
+/* Call screen improvements */
+.call-controls {
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.call-control-btn {
+  transition: all 0.3s ease;
+}
+
+.call-control-btn:hover {
+  transform: scale(1.1);
+}
+
+.call-control-btn:active {
+  transform: scale(0.95);
+}

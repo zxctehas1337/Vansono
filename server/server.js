@@ -416,13 +416,9 @@ io.on('connection', (socket) => {
       io.to(recipientSocket[0]).emit('message:received', message);
     }
 
-    // For voice messages, also send back to sender via message:received to ensure visibility
-    // For text messages, use message:sent to avoid duplication
-    if (message.type === 'voice') {
-      socket.emit('message:received', message);
-    } else {
-      socket.emit('message:sent', message);
-    }
+    // Always send back to sender via message:sent to avoid duplication
+    // The client will handle displaying the message correctly
+    socket.emit('message:sent', message);
   });
 
   // Редактирование сообщения

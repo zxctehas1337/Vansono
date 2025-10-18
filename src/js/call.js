@@ -35,13 +35,27 @@ async function initiateCall(video) {
       return;
     }
 
+    // Check if user is already in a call
+    if (window.Core.peer || window.Core.localStream) {
+      window.Core.showNotification('You are already in a call', 'error');
+      return;
+    }
+
     window.Core.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video
+      video: video || false
     });
 
     localVideo.srcObject = window.Core.localStream;
-    if (!video) localVideo.style.display = 'none';
+    
+    // Show/hide video based on call type
+    if (video) {
+      localVideo.style.display = 'block';
+      remoteVideo.style.display = 'block';
+    } else {
+      localVideo.style.display = 'none';
+      remoteVideo.style.display = 'none';
+    }
 
     window.Core.peer = new SimplePeer({
       initiator: true,
@@ -62,13 +76,23 @@ async function initiateCall(video) {
       startAudioVisualization(remoteStream, null);
     });
 
+    window.Core.peer.on('error', (err) => {
+      console.error('Peer connection error:', err);
+      window.Core.showNotification('Call connection error', 'error');
+      endCall();
+    });
+
     showCallScreen(window.Core.currentChatUser.name, 'Calling...', false);
     startAudioVisualization(window.Core.localStream, null);
     
     // Track call start time
     window.Core.callStartTime = Date.now();
+    
+    window.Core.showNotification(`Initiating ${video ? 'video' : 'voice'} call...`, 'info');
   } catch (error) {
+    console.error('Error initiating call:', error);
     window.Core.showNotification('Unable to access camera/microphone', 'error');
+    endCall();
   }
 }
 
@@ -110,13 +134,29 @@ acceptCallBtn.addEventListener('click', async () => {
       return;
     }
 
+    // Check if user is already in a call
+    if (window.Core.peer || window.Core.localStream) {
+      window.Core.showNotification('You are already in a call', 'error');
+      return;
+    }
+
+    const isVideoCall = window.Core.currentCallData.callType === 'video';
+    
     window.Core.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
-      video: window.Core.currentCallData.callType === 'video'
+      video: isVideoCall
     });
 
     localVideo.srcObject = window.Core.localStream;
-    if (window.Core.currentCallData.callType !== 'video') localVideo.style.display = 'none';
+    
+    // Show/hide video based on call type
+    if (isVideoCall) {
+      localVideo.style.display = 'block';
+      remoteVideo.style.display = 'block';
+    } else {
+      localVideo.style.display = 'none';
+      remoteVideo.style.display = 'none';
+    }
 
     window.Core.peer = new SimplePeer({
       initiator: false,
@@ -136,6 +176,12 @@ acceptCallBtn.addEventListener('click', async () => {
       startAudioVisualization(remoteStream, null);
     });
 
+    window.Core.peer.on('error', (err) => {
+      console.error('Peer connection error:', err);
+      window.Core.showNotification('Call connection error', 'error');
+      endCall();
+    });
+
     window.Core.peer.signal(window.Core.currentCallData.signal);
     
     // Switch to active call controls
@@ -148,7 +194,10 @@ acceptCallBtn.addEventListener('click', async () => {
     
     // Track call start time for accepted calls
     window.Core.callStartTime = Date.now();
+    
+    window.Core.showNotification(`Accepted ${isVideoCall ? 'video' : 'voice'} call`, 'success');
   } catch (error) {
+    console.error('Error accepting call:', error);
     window.Core.showNotification('Error answering call', 'error');
     endCall();
   }
@@ -249,7 +298,23 @@ cameraBtn.addEventListener('click', () => {
     if (videoTrack) {
       videoTrack.enabled = isCameraOn;
       cameraBtn.style.opacity = isCameraOn ? '1' : '0.5';
-      localVideo.style.display = isCameraOn ? 'block' : 'none';
+      
+      // Only show/hide local video if it's a video call
+      const isVideoCall = window.Core.currentCallData && window.Core.currentCallData.callType === 'video';
+      if (isVideoCall) {
+        localVideo.style.display = isCameraOn ? 'block' : 'none';
+      }
+      
+      // Update camera button icon based on state
+      const cameraIcon = cameraBtn.querySelector('svg path');
+      if (cameraIcon && !isCameraOn) {
+        // Add visual indication that camera is off
+        cameraBtn.classList.add('camera-off');
+      } else {
+        cameraBtn.classList.remove('camera-off');
+      }
+      
+      window.Core.showNotification(`Camera ${isCameraOn ? 'enabled' : 'disabled'}`, 'info');
     }
   }
 });
