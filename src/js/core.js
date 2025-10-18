@@ -246,7 +246,16 @@ function initializeChat() {
   // Transition from auth to chat screen
   if (authScreen) {
     authScreen.classList.remove('active');
-    console.log('Auth screen hidden');
+    // Aggressively hide auth screen
+    authScreen.style.cssText = `
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+      z-index: -999 !important;
+      position: absolute !important;
+      left: -9999px !important;
+    `;
+    console.log('Auth screen aggressively hidden');
   }
   
   if (chatScreen) {
@@ -315,6 +324,172 @@ function initializeChat() {
     }
     
     console.log('Emergency visibility styles applied to chat screen with maximum priority');
+    
+    // Force body and html styles
+    document.documentElement.style.cssText = `
+      height: 100% !important;
+      overflow: hidden !important;
+    `;
+    
+    document.body.style.cssText = `
+      margin: 0 !important;
+      padding: 0 !important;
+      height: 100vh !important;
+      overflow: hidden !important;
+      background: #0f0f0f !important;
+      color: #ffffff !important;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+    `;
+    
+    // Detailed DOM debugging
+    setTimeout(() => {
+      console.log('=== DOM STATE AFTER INITIALIZATION ===');
+      console.log('Body styles:', {
+        background: getComputedStyle(document.body).backgroundColor,
+        height: getComputedStyle(document.body).height,
+        overflow: getComputedStyle(document.body).overflow
+      });
+      console.log('Auth screen:', {
+        exists: !!authScreen,
+        display: authScreen ? getComputedStyle(authScreen).display : 'N/A',
+        visibility: authScreen ? getComputedStyle(authScreen).visibility : 'N/A',
+        opacity: authScreen ? getComputedStyle(authScreen).opacity : 'N/A',
+        zIndex: authScreen ? getComputedStyle(authScreen).zIndex : 'N/A'
+      });
+      console.log('Chat screen:', {
+        exists: !!chatScreen,
+        display: chatScreen ? getComputedStyle(chatScreen).display : 'N/A',
+        visibility: chatScreen ? getComputedStyle(chatScreen).visibility : 'N/A',
+        opacity: chatScreen ? getComputedStyle(chatScreen).opacity : 'N/A',
+        zIndex: chatScreen ? getComputedStyle(chatScreen).zIndex : 'N/A',
+        background: chatScreen ? getComputedStyle(chatScreen).backgroundColor : 'N/A',
+        width: chatScreen ? getComputedStyle(chatScreen).width : 'N/A',
+        height: chatScreen ? getComputedStyle(chatScreen).height : 'N/A'
+      });
+      if (chatScreen) {
+        const layout = chatScreen.querySelector('.chat-layout');
+        const sidebar = chatScreen.querySelector('.sidebar');
+        const main = chatScreen.querySelector('.chat-main');
+        const emptyState = chatScreen.querySelector('#empty-state');
+        console.log('Chat layout:', {
+          exists: !!layout,
+          display: layout ? getComputedStyle(layout).display : 'N/A',
+          visibility: layout ? getComputedStyle(layout).visibility : 'N/A',
+          width: layout ? getComputedStyle(layout).width : 'N/A',
+          height: layout ? getComputedStyle(layout).height : 'N/A'
+        });
+        console.log('Sidebar:', {
+          exists: !!sidebar,
+          display: sidebar ? getComputedStyle(sidebar).display : 'N/A',
+          visibility: sidebar ? getComputedStyle(sidebar).visibility : 'N/A',
+          width: sidebar ? getComputedStyle(sidebar).width : 'N/A'
+        });
+        console.log('Main chat:', {
+          exists: !!main,
+          display: main ? getComputedStyle(main).display : 'N/A',
+          visibility: main ? getComputedStyle(main).visibility : 'N/A',
+          width: main ? getComputedStyle(main).width : 'N/A'
+        });
+        console.log('Empty state:', {
+          exists: !!emptyState,
+          display: emptyState ? getComputedStyle(emptyState).display : 'N/A',
+          visibility: emptyState ? getComputedStyle(emptyState).visibility : 'N/A'
+        });
+      }
+      console.log('=== END DOM STATE DEBUG ===');
+      
+      // Emergency fallback - if chat screen is still not visible, create a new one
+      if (chatScreen && getComputedStyle(chatScreen).display === 'none') {
+        console.log('EMERGENCY: Chat screen is still not visible, creating fallback');
+        
+        // Create emergency chat interface
+        const emergencyChatDiv = document.createElement('div');
+        emergencyChatDiv.id = 'emergency-chat';
+        emergencyChatDiv.style.cssText = `
+          position: fixed !important;
+          top: 0 !important;
+          left: 0 !important;
+          width: 100vw !important;
+          height: 100vh !important;
+          background: #0f0f0f !important;
+          color: #ffffff !important;
+          display: flex !important;
+          z-index: 9999 !important;
+          font-family: Arial, sans-serif !important;
+        `;
+        
+        emergencyChatDiv.innerHTML = `
+          <div style="width: 300px; background: #1a1a1a; border-right: 1px solid #333; display: flex; flex-direction: column;">
+            <div style="padding: 20px; border-bottom: 1px solid #333;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold;">
+                  ${currentUser ? currentUser.name.charAt(0) : 'U'}
+                </div>
+                <div>
+                  <div style="font-weight: 600;">${currentUser ? currentUser.name : 'User'}</div>
+                  <div style="color: #a0a0a0; font-size: 14px;">${currentUser ? (currentUser.username.startsWith('@') ? currentUser.username : '@' + currentUser.username) : '@user'}</div>
+                </div>
+              </div>
+            </div>
+            <div style="flex: 1; padding: 20px;">
+              <div style="text-align: center; color: #a0a0a0; padding: 40px 20px;">
+                <h3 style="margin-bottom: 8px; color: #ffffff;">Chat List</h3>
+                <p style="margin: 0;">Your chats will appear here</p>
+                <div id="emergency-users-list" style="margin-top: 20px;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+            <div style="text-align: center; color: #a0a0a0;">
+              <div style="width: 80px; height: 80px; margin: 0 auto 20px; border: 3px solid #667eea; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 32px;">💬</div>
+              <h2 style="margin-bottom: 8px; color: #ffffff;">Select a chat to start messaging</h2>
+              <p style="margin: 0;">Choose from your existing conversations or start a new one</p>
+              <div style="margin-top: 20px; padding: 12px 20px; background: #1a1a1a; border-radius: 8px; border: 1px solid #333;">✅ Emergency chat interface loaded successfully</div>
+            </div>
+          </div>
+        `;
+        
+        document.body.appendChild(emergencyChatDiv);
+        console.log('Emergency chat interface created and added to DOM');
+        
+        // Add users to emergency list
+        const emergencyUsersList = emergencyChatDiv.querySelector('#emergency-users-list');
+        if (users && users.length > 0) {
+          users.forEach(user => {
+            if (currentUser && user.id !== currentUser.id) {
+              const userDiv = document.createElement('div');
+              userDiv.style.cssText = `
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                margin-bottom: 8px;
+                background: #252525;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: background 0.3s ease;
+              `;
+              userDiv.innerHTML = `
+                <div style="width: 32px; height: 32px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px;">
+                  ${user.name.charAt(0)}
+                </div>
+                <div>
+                  <div style="font-weight: 500; font-size: 14px;">${user.name}</div>
+                  <div style="color: #a0a0a0; font-size: 12px;">${user.username}</div>
+                </div>
+              `;
+              userDiv.addEventListener('mouseover', () => {
+                userDiv.style.background = '#2a2a2a';
+              });
+              userDiv.addEventListener('mouseout', () => {
+                userDiv.style.background = '#252525';
+              });
+              emergencyUsersList.appendChild(userDiv);
+            }
+          });
+        }
+      }
+    }, 1000);
   }
   
   // Update user display
