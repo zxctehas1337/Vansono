@@ -83,11 +83,49 @@ function showChatsList() {
     if (emptyState) emptyState.style.display = 'block';
     if (chatsList) chatsList.style.display = 'block';
     
-    // Also ensure sidebar is visible
+    // Force visibility of all chat elements
     const sidebar = document.querySelector('.sidebar');
+    const chatMain = document.querySelector('.chat-main');
+    
     if (sidebar) {
       sidebar.style.display = 'flex';
+      sidebar.style.visibility = 'visible';
+      sidebar.style.opacity = '1';
       console.log('Sidebar made visible');
+    }
+    
+    if (chatMain) {
+      chatMain.style.display = 'flex';
+      chatMain.style.visibility = 'visible';
+      chatMain.style.opacity = '1';
+      console.log('Chat main made visible');
+    }
+    
+    // Force the entire chat screen to be visible with emergency styles
+    if (chatScreen) {
+      chatScreen.style.cssText = `
+        display: flex !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        z-index: 1 !important;
+        width: 100% !important;
+        height: 100vh !important;
+        background: #0f0f0f !important;
+        color: #ffffff !important;
+      `;
+      console.log('Chat screen emergency styles applied');
+    }
+    
+    // Emergency styles for chat layout
+    const chatLayout = document.querySelector('.chat-layout');
+    if (chatLayout) {
+      chatLayout.style.cssText = `
+        display: flex !important;
+        width: 100% !important;
+        height: 100vh !important;
+        background: #0f0f0f !important;
+      `;
+      console.log('Chat layout emergency styles applied');
     }
     
     console.log('Chat elements visibility:', {
