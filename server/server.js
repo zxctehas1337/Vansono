@@ -126,6 +126,49 @@ initializeDatabase().then(() => {
   loadUsersFromDatabase();
 });
 
+// Function to get or create a private chat between two users
+async function getOrCreatePrivateChat(user1Id, user2Id) {
+  try {
+    // Sort user IDs to ensure consistent chat lookup
+    const [userId1, userId2] = [user1Id, user2Id].sort();
+    
+    // First, try to find existing private chat
+    const existingChat = await pool.query(`
+      SELECT c.id FROM chats c
+      JOIN chat_participants cp1 ON c.id = cp1.chat_id AND cp1.user_id = $1
+      JOIN chat_participants cp2 ON c.id = cp2.chat_id AND cp2.user_id = $2
+      WHERE c.chat_type = 'private'
+      AND (SELECT COUNT(*) FROM chat_participants WHERE chat_id = c.id) = 2
+    `, [userId1, userId2]);
+    
+    if (existingChat.rows.length > 0) {
+      return existingChat.rows[0].id;
+    }
+    
+    // Create new private chat
+    const chatId = uuidv4();
+    const chatName = `Private chat between ${userId1} and ${userId2}`;
+    
+    await pool.query(
+      'INSERT INTO chats (id, name, chat_type, created_by) VALUES ($1, $2, $3, $4)',
+      [chatId, chatName, 'private', userId1]
+    );
+    
+    // Add both participants
+    await pool.query(
+      'INSERT INTO chat_participants (chat_id, user_id) VALUES ($1, $2), ($1, $3)',
+      [chatId, userId1, userId2]
+    );
+    
+    return chatId;
+  } catch (error) {
+    console.error('Error getting/creating private chat:', error);
+    // Fallback: use a deterministic chat ID based on user IDs
+    const [userId1, userId2] = [user1Id, user2Id].sort();
+    return `private_${userId1}_${userId2}`;
+  }
+}
+
 io.on('connection', (socket) => {
   console.log('', socket.id);
 
@@ -334,6 +377,9 @@ io.on('connection', (socket) => {
 
     if (!fromUserId) return;
 
+    // Get or create the chat for this conversation
+    const chatId = await getOrCreatePrivateChat(fromUserId, to);
+
     const message = {
       id: uuidv4(),
       from: fromUserId,
@@ -346,14 +392,15 @@ io.on('connection', (socket) => {
       replyTo: replyTo || null,
       type: type || 'text',
       audioUrl: audioUrl || null,
-      duration: duration || null
+      duration: duration || null,
+      chatId // Add chatId to the message object
     };
 
     // Save to database
     try {
       await pool.query(
         'INSERT INTO messages (id, content, user_id, chat_id, message_type, audio_url, duration) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [message.id, message.text, fromUserId, to, message.type, message.audioUrl, message.duration]
+        [message.id, message.text, fromUserId, chatId, message.type, message.audioUrl, message.duration]
       );
     } catch (error) {
       console.error('Error saving message to database:', error);
@@ -439,7 +486,10 @@ io.on('connection', (socket) => {
         }
       });
 
-      // Добавляем новую реакцию
+      // Добавляем новую реакцию (проверяем, что emoji ключ еще существует)
+      if (!message.reactions[emoji]) {
+        message.reactions[emoji] = [];
+      }
       message.reactions[emoji].push(fromUserId);
 
       // Уведомить всех участников чата о реакции
@@ -458,26 +508,35 @@ io.on('connection', (socket) => {
 
     if (!currentUserId) return;
 
+    // Get the chat ID for this conversation
+    const chatId = await getOrCreatePrivateChat(currentUserId, userId);
+
     // Try to load from database first
     try {
       const result = await pool.query(
-        'SELECT * FROM messages WHERE (user_id = $1 AND chat_id = $2) OR (user_id = $2 AND chat_id = $1) ORDER BY created_at ASC',
-        [currentUserId, userId]
+        'SELECT * FROM messages WHERE chat_id = $1 ORDER BY created_at ASC',
+        [chatId]
       );
       
       if (result.rows.length > 0) {
-        const chatMessages = result.rows.map(row => ({
-          id: row.id,
-          from: row.user_id,
-          to: row.chat_id,
-          text: row.content,
-          timestamp: new Date(row.created_at).getTime(),
-          type: row.message_type || 'text',
-          audioUrl: row.audio_url,
-          duration: row.duration,
-          edited: false,
-          deleted: false
-        }));
+        const chatMessages = result.rows.map(row => {
+          // Determine the 'to' field based on who sent the message
+          const to = row.user_id === currentUserId ? userId : currentUserId;
+          
+          return {
+            id: row.id,
+            from: row.user_id,
+            to: to,
+            text: row.content,
+            timestamp: new Date(row.created_at).getTime(),
+            type: row.message_type || 'text',
+            audioUrl: row.audio_url,
+            duration: row.duration,
+            edited: false,
+            deleted: false,
+            chatId: row.chat_id
+          };
+        });
         socket.emit('messages:history', chatMessages);
         return;
       }
