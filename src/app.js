@@ -5,6 +5,9 @@ let currentChatUser = null;
 let peer = null;
 let localStream = null;
 let currentCallData = null;
+let callStartTime = null;
+let callEndTime = null;
+let callDuration = null;
 
 // DOM Elements
 const authScreen = document.getElementById('auth-screen');
@@ -91,9 +94,7 @@ const activeCallControls = document.getElementById('active-call-controls');
 const acceptCallBtn = document.getElementById('accept-call-btn');
 const declineCallBtn = document.getElementById('decline-call-btn');
 
-// Audio visualization elements
-const localAudioCircle = document.getElementById('local-audio-circle');
-const remoteAudioCircle = document.getElementById('remote-audio-circle');
+// Audio visualization elements removed
 
 // ===== AUTH LOGIC =====
 
@@ -290,6 +291,9 @@ function openChat(user) {
   // Load messages
   messagesContainer.innerHTML = '';
   socket.emit('messages:get', { userId: user.id });
+  
+  // Mark messages as read
+  socket.emit('messages:mark-read', { userId: user.id });
 }
 
 // Display messages history
@@ -331,11 +335,37 @@ function displayMessage(message) {
 
   const senderName = isSent ? currentUser.name : currentChatUser.name;
 
+  // Read receipt icons
+  let readReceipts = '';
+  if (isSent) {
+    if (message.read) {
+      readReceipts = `
+        <div class="read-receipts">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="translate(0, 2)"/>
+          </svg>
+        </div>
+      `;
+    } else {
+      readReceipts = `
+        <div class="read-receipts">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M3 8L6 11L13 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      `;
+    }
+  }
+
   messageEl.innerHTML = `
     <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
     <div class="message-content">
       <div class="message-bubble">${escapeHtml(message.text)}</div>
-      <div class="message-time">${time}</div>
+      <div class="message-meta">
+        <div class="message-time">${time}</div>
+        ${readReceipts}
+      </div>
     </div>
   `;
 
@@ -356,6 +386,16 @@ socket.on('message:sent', (message) => {
   scrollToBottom();
 });
 
+// Message read confirmation
+socket.on('messages:read', (data) => {
+  // Update read status for messages from the current chat user
+  if (currentChatUser && data.from === currentChatUser.id) {
+    // Re-render messages to show updated read status
+    messagesContainer.innerHTML = '';
+    socket.emit('messages:get', { userId: currentChatUser.id });
+  }
+});
+
 function scrollToBottom() {
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
@@ -364,6 +404,42 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Call history functions
+function createCallHistoryMessage(callType, status, duration = null) {
+  const timestamp = Date.now();
+  let messageText = '';
+  
+  if (status === 'accepted') {
+    if (duration) {
+      const minutes = Math.floor(duration / 60);
+      const seconds = Math.floor(duration % 60);
+      const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      messageText = `📞 ${callType} call accepted - Duration: ${durationText}`;
+    } else {
+      messageText = `📞 ${callType} call accepted`;
+    }
+  } else if (status === 'rejected') {
+    messageText = `📞 ${callType} call rejected`;
+  } else if (status === 'missed') {
+    messageText = `📞 Missed ${callType} call`;
+  }
+  
+  return {
+    id: `call_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
+    from: currentUser.id,
+    to: currentChatUser.id,
+    text: messageText,
+    timestamp: timestamp,
+    isCallHistory: true
+  };
+}
+
+function formatDuration(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+  return minutes > 0 ? `${minutes}m ${remainingSeconds}s` : `${remainingSeconds}s`;
 }
 
 // ===== WEBRTC CALL LOGIC =====
@@ -406,11 +482,14 @@ async function initiateCall(video) {
 
     peer.on('stream', (remoteStream) => {
       remoteVideo.srcObject = remoteStream;
-      startAudioVisualization(remoteStream, remoteAudioCircle);
+      startAudioVisualization(remoteStream, null);
     });
 
     showCallScreen(currentChatUser.name, 'Calling...', false);
-    startAudioVisualization(localStream, localAudioCircle);
+    startAudioVisualization(localStream, null);
+    
+    // Track call start time
+    callStartTime = Date.now();
   } catch (error) {
     console.error('Error accessing media devices:', error);
     alert('Unable to access camera/microphone');
@@ -467,7 +546,7 @@ acceptCallBtn.addEventListener('click', async () => {
 
     peer.on('stream', (remoteStream) => {
       remoteVideo.srcObject = remoteStream;
-      startAudioVisualization(remoteStream, remoteAudioCircle);
+      startAudioVisualization(remoteStream, null);
     });
 
     peer.signal(currentCallData.signal);
@@ -478,7 +557,10 @@ acceptCallBtn.addEventListener('click', async () => {
     document.querySelector('.call-info').classList.remove('ringing');
     
     callStatus.textContent = 'Connected';
-    startAudioVisualization(localStream, localAudioCircle);
+    startAudioVisualization(localStream, null);
+    
+    // Track call start time for accepted calls
+    callStartTime = Date.now();
   } catch (error) {
     console.error('Error answering call:', error);
     endCall();
@@ -489,6 +571,18 @@ acceptCallBtn.addEventListener('click', async () => {
 declineCallBtn.addEventListener('click', () => {
   if (currentCallData) {
     socket.emit('call:decline', { to: currentCallData.from });
+    
+    // Create call history message for rejected call
+    const callHistoryMessage = createCallHistoryMessage(currentCallData.callType, 'rejected');
+    displayMessage(callHistoryMessage);
+    scrollToBottom();
+    
+    // Send call history message to server
+    socket.emit('message:send', {
+      to: currentChatUser.id,
+      text: callHistoryMessage.text,
+      isCallHistory: true
+    });
   }
   endCall();
 });
@@ -502,6 +596,19 @@ socket.on('call:accepted', (data) => {
 // Call declined
 socket.on('call:declined', () => {
   callStatus.textContent = 'Call declined';
+  
+  // Create call history message for declined call
+  const callHistoryMessage = createCallHistoryMessage('voice', 'rejected');
+  displayMessage(callHistoryMessage);
+  scrollToBottom();
+  
+  // Send call history message to server
+  socket.emit('message:send', {
+    to: currentChatUser.id,
+    text: callHistoryMessage.text,
+    isCallHistory: true
+  });
+  
   setTimeout(() => endCall(), 2000);
 });
 
@@ -524,6 +631,24 @@ socket.on('call:ended', () => {
 });
 
 function endCall() {
+  // Calculate call duration if call was active
+  if (callStartTime && currentCallData) {
+    callEndTime = Date.now();
+    callDuration = Math.floor((callEndTime - callStartTime) / 1000);
+    
+    // Create call history message for ended call
+    const callHistoryMessage = createCallHistoryMessage(currentCallData.callType, 'accepted', callDuration);
+    displayMessage(callHistoryMessage);
+    scrollToBottom();
+    
+    // Send call history message to server
+    socket.emit('message:send', {
+      to: currentChatUser.id,
+      text: callHistoryMessage.text,
+      isCallHistory: true
+    });
+  }
+  
   if (peer) {
     peer.destroy();
     peer = null;
@@ -545,7 +670,11 @@ function endCall() {
   activeCallControls.style.display = 'flex';
   document.querySelector('.call-info').classList.remove('ringing');
   
+  // Reset call tracking variables
   currentCallData = null;
+  callStartTime = null;
+  callEndTime = null;
+  callDuration = null;
 
   callScreen.classList.remove('active');
   chatScreen.classList.add('active');
@@ -589,70 +718,25 @@ function showCallScreen(name, status, showControls = true) {
   }
 }
 
-// Audio visualization
+// Audio visualization - DISABLED (pulsating circles removed)
 let audioContext = null;
 let localAnalyser = null;
 let remoteAnalyser = null;
 let animationId = null;
 
 function startAudioVisualization(stream, circleElement) {
-  if (!audioContext) {
-    audioContext = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  
-  const source = audioContext.createMediaStreamSource(stream);
-  const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 256;
-  source.connect(analyser);
-  
-  if (circleElement === localAudioCircle) {
-    localAnalyser = analyser;
-  } else {
-    remoteAnalyser = analyser;
-  }
-  
-  if (!animationId) {
-    animateAudioVisualization();
-  }
+  // Audio visualization disabled - no pulsating circles
+  return;
 }
 
 function stopAudioVisualization() {
-  if (animationId) {
-    cancelAnimationFrame(animationId);
-    animationId = null;
-  }
-  
-  localAnalyser = null;
-  remoteAnalyser = null;
-  
-  localAudioCircle.classList.remove('pulsing');
-  remoteAudioCircle.classList.remove('pulsing');
+  // Audio visualization disabled - no pulsating circles
+  return;
 }
 
 function animateAudioVisualization() {
-  const bufferLength = 256;
-  const dataArray = new Uint8Array(bufferLength);
-  
-  function updateCircle(analyser, circle) {
-    if (!analyser || !circle) return;
-    
-    analyser.getByteFrequencyData(dataArray);
-    const average = dataArray.reduce((a, b) => a + b) / bufferLength;
-    const intensity = average / 255;
-    
-    if (intensity > 0.1) {
-      circle.classList.add('pulsing');
-      circle.style.opacity = Math.min(0.8, intensity * 2);
-    } else {
-      circle.classList.remove('pulsing');
-      circle.style.opacity = 0;
-    }
-  }
-  
-  updateCircle(localAnalyser, localAudioCircle);
-  updateCircle(remoteAnalyser, remoteAudioCircle);
-  
-  animationId = requestAnimationFrame(animateAudioVisualization);
+  // Audio visualization disabled - no pulsating circles
+  return;
 }
 
 // ===== UTILITIES =====

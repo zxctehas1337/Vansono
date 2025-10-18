@@ -239,6 +239,31 @@ io.on('connection', (socket) => {
     socket.emit('messages:history', chatMessages);
   });
 
+  // Mark messages as read
+  socket.on('messages:mark-read', (data) => {
+    const { userId } = data;
+    const currentUserId = onlineUsers.get(socket.id);
+
+    if (!currentUserId) return;
+
+    // Mark messages as read
+    messages.forEach(message => {
+      if (message.from === userId && message.to === currentUserId && !message.read) {
+        message.read = true;
+        message.readAt = Date.now();
+      }
+    });
+
+    // Notify sender that messages were read
+    const senderSocket = Array.from(onlineUsers.entries()).find(([_, userId]) => userId === data.userId);
+    if (senderSocket) {
+      io.to(senderSocket[0]).emit('messages:read', { 
+        from: currentUserId,
+        readAt: Date.now()
+      });
+    }
+  });
+
   // WebRTC сигналинг
   socket.on('call:initiate', (data) => {
     const { to, signal, callType } = data;
