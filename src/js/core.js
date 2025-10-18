@@ -146,26 +146,55 @@ function debounce(fn, delay = 300) {
 
 // Update user display
 function updateUserDisplay(user) {
-  document.getElementById('current-user-name').textContent = user.name;
-  document.getElementById('current-user-username').textContent = user.username.startsWith('@') ? user.username : `@${user.username}`;
-  document.getElementById('current-user-avatar').textContent = user.name.charAt(0);
+  if (!user || !user.name) {
+    console.warn('Invalid user object passed to updateUserDisplay');
+    return;
+  }
+  
+  const nameEl = document.getElementById('current-user-name');
+  const usernameEl = document.getElementById('current-user-username');
+  const avatarEl = document.getElementById('current-user-avatar');
+  
+  if (nameEl) nameEl.textContent = user.name;
+  if (usernameEl) usernameEl.textContent = user.username ? (user.username.startsWith('@') ? user.username : `@${user.username}`) : '@unknown';
+  if (avatarEl) avatarEl.textContent = user.name.charAt(0);
 }
 
 // Initialize chat
 function initializeChat() {
-  authScreen.classList.remove('active');
-  chatScreen.classList.add('active');
-  updateUserDisplay(currentUser);
+  if (authScreen) authScreen.classList.remove('active');
+  if (chatScreen) chatScreen.classList.add('active');
+  
+  if (currentUser) {
+    updateUserDisplay(currentUser);
+  } else {
+    console.warn('No current user available for display');
+  }
 }
 
 // ===== SOCKET EVENT HANDLERS =====
 
 // Users list
 socket.on('users:list', (users) => {
+  if (!chatsList) {
+    console.warn('Chats list element not found');
+    return;
+  }
+  
   chatsList.innerHTML = '';
   
+  if (!users || !Array.isArray(users)) {
+    console.warn('Invalid users array received');
+    return;
+  }
+  
   users.forEach(user => {
-    if (user.id !== currentUser.id) {
+    if (!user || !user.id || !user.name) {
+      console.warn('Invalid user object in users list:', user);
+      return;
+    }
+    
+    if (!currentUser || user.id !== currentUser.id) {
       const chatItem = document.createElement('div');
       chatItem.className = 'chat-item';
       chatItem.dataset.userId = user.id;
@@ -200,7 +229,17 @@ socket.on('search_results', (users) => {
 // Update users list
 function updateUsersList(users) {
   const chatsList = document.getElementById('chats-list');
-  chatsList.innerHTML = users.map(user => `
+  if (!chatsList) {
+    console.warn('Chats list element not found');
+    return;
+  }
+  
+  if (!users || !Array.isArray(users)) {
+    console.warn('Invalid users array received');
+    return;
+  }
+  
+  chatsList.innerHTML = users.filter(user => user && user.id && user.name).map(user => `
     <div class="chat-item" data-user-id="${user.id}">
       <div class="avatar">${user.name.charAt(0)}</div>
       <div class="chat-item-info">

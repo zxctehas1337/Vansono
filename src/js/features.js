@@ -7,17 +7,22 @@
 let groups = JSON.parse(localStorage.getItem('groups') || '[]');
 let selectedMembers = [];
 
-// Group chat elements
-const createGroupBtn = document.getElementById('create-group-btn');
-const createGroupModal = document.getElementById('create-group-modal');
-const closeGroupModal = document.getElementById('close-group-modal');
-const cancelGroupBtn = document.getElementById('cancel-group-btn');
-const createGroupConfirmBtn = document.getElementById('create-group-confirm-btn');
-const groupNameInput = document.getElementById('group-name');
-const groupDescriptionInput = document.getElementById('group-description');
-const memberSearchInput = document.getElementById('member-search');
-const membersList = document.getElementById('members-list');
-const selectedMembersContainer = document.getElementById('selected-members');
+// Group chat elements (with null checks)
+let createGroupBtn = document.getElementById('create-group-btn');
+let createGroupModal = document.getElementById('create-group-modal');
+let closeGroupModal = document.getElementById('close-group-modal');
+let cancelGroupBtn = document.getElementById('cancel-group-btn');
+let createGroupConfirmBtn = document.getElementById('create-group-confirm-btn');
+let groupNameInput = document.getElementById('group-name');
+let groupDescriptionInput = document.getElementById('group-description');
+let memberSearchInput = document.getElementById('member-search');
+let membersList = document.getElementById('members-list');
+let selectedMembersContainer = document.getElementById('selected-members');
+
+// Alternative button selectors if primary doesn't exist
+if (!createGroupBtn) {
+  createGroupBtn = document.getElementById('create-group-btn-menu') || document.getElementById('create-group-btn-settings');
+}
 
 // Initialize group chats
 function initializeGroupChats() {
@@ -27,34 +32,50 @@ function initializeGroupChats() {
 
 // Setup group chat modal
 function setupGroupChatModal() {
+  // Check if required elements exist
+  if (!createGroupBtn || !createGroupModal) {
+    console.warn('Group chat elements not found in DOM, skipping group chat initialization');
+    return;
+  }
+
   // Open create group modal
   createGroupBtn.addEventListener('click', () => {
-    createGroupModal.classList.add('active');
-    populateMembersList();
-    groupNameInput.focus();
+    if (createGroupModal) {
+      createGroupModal.classList.add('active');
+      populateMembersList();
+      if (groupNameInput) groupNameInput.focus();
+    }
   });
 
   // Close group modal
-  closeGroupModal.addEventListener('click', () => {
-    createGroupModal.classList.remove('active');
-    resetGroupModal();
-  });
+  if (closeGroupModal) {
+    closeGroupModal.addEventListener('click', () => {
+      createGroupModal.classList.remove('active');
+      resetGroupModal();
+    });
+  }
 
-  cancelGroupBtn.addEventListener('click', () => {
-    createGroupModal.classList.remove('active');
-    resetGroupModal();
-  });
+  if (cancelGroupBtn) {
+    cancelGroupBtn.addEventListener('click', () => {
+      createGroupModal.classList.remove('active');
+      resetGroupModal();
+    });
+  }
 
   // Member search
-  memberSearchInput.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase();
-    filterMembers(query);
-  });
+  if (memberSearchInput) {
+    memberSearchInput.addEventListener('input', (e) => {
+      const query = e.target.value.toLowerCase();
+      filterMembers(query);
+    });
+  }
 
   // Create group
-  createGroupConfirmBtn.addEventListener('click', () => {
-    createGroup();
-  });
+  if (createGroupConfirmBtn) {
+    createGroupConfirmBtn.addEventListener('click', () => {
+      createGroup();
+    });
+  }
 }
 
 // Populate members list
@@ -82,6 +103,10 @@ function populateMembersList() {
 
 // Render members list
 function renderMembersList(users) {
+  if (!membersList) {
+    console.warn('Members list element not found');
+    return;
+  }
   membersList.innerHTML = '';
   
   if (users.length === 0) {
@@ -167,6 +192,10 @@ function toggleMemberSelection(user) {
 
 // Update selected members display
 function updateSelectedMembersDisplay() {
+  if (!selectedMembersContainer) {
+    console.warn('Selected members container not found');
+    return;
+  }
   selectedMembersContainer.innerHTML = '';
   
   selectedMembers.forEach(member => {
@@ -348,16 +377,17 @@ function sendGroupMessage() {
 
 // Reset group modal
 function resetGroupModal() {
-  groupNameInput.value = '';
-  groupDescriptionInput.value = '';
-  memberSearchInput.value = '';
+  if (groupNameInput) groupNameInput.value = '';
+  if (groupDescriptionInput) groupDescriptionInput.value = '';
+  if (memberSearchInput) memberSearchInput.value = '';
   selectedMembers = [];
-  selectedMembersContainer.innerHTML = '';
+  if (selectedMembersContainer) selectedMembersContainer.innerHTML = '';
   
   // Reset member selections
   document.querySelectorAll('.member-item').forEach(item => {
     item.classList.remove('selected');
-    item.querySelector('.member-checkbox svg').style.display = 'none';
+    const checkbox = item.querySelector('.member-checkbox svg');
+    if (checkbox) checkbox.style.display = 'none';
   });
 }
 
@@ -377,15 +407,15 @@ let recordingStartTime = null;
 let recordingTimer = null;
 let isRecording = false;
 
-// Voice recording elements
-const voiceMessageBtn = document.getElementById('voice-message-btn');
-const voiceRecordingPanel = document.getElementById('voice-recording-panel');
-const voiceRecordingStatus = document.getElementById('voice-recording-status');
-const voiceRecordingTime = document.getElementById('voice-recording-time');
-const voiceRecordingVisualizer = document.getElementById('voice-recording-visualizer');
-const voiceCancelBtn = document.getElementById('voice-cancel-btn');
-const voiceStopBtn = document.getElementById('voice-stop-btn');
-const voiceSendBtn = document.getElementById('voice-send-btn');
+// Voice recording elements (with null checks)
+let voiceMessageBtn = document.getElementById('voice-message-btn');
+let voiceRecordingPanel = document.getElementById('voice-recording-panel');
+let voiceRecordingStatus = document.getElementById('voice-recording-status');
+let voiceRecordingTime = document.getElementById('voice-recording-time');
+let voiceRecordingVisualizer = document.getElementById('voice-recording-visualizer');
+let voiceCancelBtn = document.getElementById('voice-cancel-btn');
+let voiceStopBtn = document.getElementById('voice-stop-btn');
+let voiceSendBtn = document.getElementById('voice-send-btn');
 
 // Initialize voice messages
 function initializeVoiceMessages() {
@@ -394,6 +424,12 @@ function initializeVoiceMessages() {
 
 // Setup voice recording
 function setupVoiceRecording() {
+  // Check if voice elements exist
+  if (!voiceMessageBtn) {
+    console.warn('Voice recording elements not found, skipping voice recording initialization');
+    return;
+  }
+  
   // Start voice recording
   voiceMessageBtn.addEventListener('click', () => {
     if (!isRecording) {
@@ -402,19 +438,25 @@ function setupVoiceRecording() {
   });
 
   // Cancel recording
-  voiceCancelBtn.addEventListener('click', () => {
-    cancelVoiceRecording();
-  });
+  if (voiceCancelBtn) {
+    voiceCancelBtn.addEventListener('click', () => {
+      cancelVoiceRecording();
+    });
+  }
 
   // Stop recording
-  voiceStopBtn.addEventListener('click', () => {
-    stopVoiceRecording();
-  });
+  if (voiceStopBtn) {
+    voiceStopBtn.addEventListener('click', () => {
+      stopVoiceRecording();
+    });
+  }
 
   // Send voice message
-  voiceSendBtn.addEventListener('click', () => {
-    sendVoiceMessage();
-  });
+  if (voiceSendBtn) {
+    voiceSendBtn.addEventListener('click', () => {
+      sendVoiceMessage();
+    });
+  }
 }
 
 // Start voice recording
