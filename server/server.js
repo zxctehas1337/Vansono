@@ -985,9 +985,10 @@ io.on('connection', (socket) => {
   });
 });
 
-// Middleware to prevent caching issues
+// Middleware to prevent caching issues and add debug logging
 app.use((req, res, next) => {
   if (req.url.endsWith('.css') || req.url.endsWith('.js') || req.url.endsWith('.html')) {
+    console.log('Static file request:', req.url);
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
