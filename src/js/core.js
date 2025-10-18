@@ -7,6 +7,7 @@ const socket = io(window.location.origin.includes('localhost') ? 'http://localho
 // Global state
 let currentUser = null;
 let currentChatUser = null;
+let users = [];
 let peer = null;
 let localStream = null;
 let currentCallData = null;
@@ -50,7 +51,7 @@ function handleRouting() {
     const userId = path.split('/chat/')[1];
     if (userId && currentUser) {
       // Find user and open chat
-      const user = Array.from(window.Core.users || []).find(u => u.id === userId);
+      const user = users.find(u => u.id === userId);
       if (user) {
         openChat(user);
       } else {
@@ -218,20 +219,23 @@ function initializeChat() {
 // ===== SOCKET EVENT HANDLERS =====
 
 // Users list
-socket.on('users:list', (users) => {
+socket.on('users:list', (usersList) => {
   if (!chatsList) {
     console.warn('Chats list element not found');
     return;
   }
   
+  // Store users globally
+  users = usersList || [];
+  
   chatsList.innerHTML = '';
   
-  if (!users || !Array.isArray(users)) {
+  if (!usersList || !Array.isArray(usersList)) {
     console.warn('Invalid users array received');
     return;
   }
   
-  users.forEach(user => {
+  usersList.forEach(user => {
     if (!user || !user.id || !user.name) {
       console.warn('Invalid user object in users list:', user);
       return;
@@ -400,6 +404,8 @@ window.Core = {
   set currentUser(value) { currentUser = value; },
   get currentChatUser() { return currentChatUser; },
   set currentChatUser(value) { currentChatUser = value; },
+  get users() { return users; },
+  set users(value) { users = value; },
   get peer() { return peer; },
   set peer(value) { peer = value; },
   get localStream() { return localStream; },

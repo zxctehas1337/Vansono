@@ -209,12 +209,12 @@ function registerSocketHandlers() {
         console.log('Chat screen activated');
       }
       
-      // Handle routing after authentication
-      if (window.Core && window.Core.handleRouting) {
-        window.Core.handleRouting();
-        console.log('Routing handled');
+      // Initialize chat interface
+      if (window.Core && window.Core.initializeChat) {
+        window.Core.initializeChat();
+        console.log('Chat interface initialized');
       } else {
-        console.warn('Core.handleRouting not available');
+        console.warn('Core.initializeChat not available');
       }
       
       console.log('User interface switched to chat screen successfully');
@@ -224,8 +224,32 @@ function registerSocketHandlers() {
       console.error('Social authentication error:', data);
       showSocialAuthError(data.message || 'Authentication failed');
     });
+
+    // Handle token-based authentication success (for already logged in users)
+    window.Core.socket.on('auth:success', (data) => {
+      console.log('Token authentication successful:', data);
+      
+      window.Core.currentUser = data.user;
+      localStorage.setItem('userData', JSON.stringify(data.user));
+      
+      // Switch to chat screen
+      const authScreen = document.getElementById('auth-screen');
+      const chatScreen = document.getElementById('chat-screen');
+      
+      if (authScreen) {
+        authScreen.classList.remove('active');
+      }
+      if (chatScreen) {
+        chatScreen.classList.add('active');
+      }
+      
+      // Initialize chat interface
+      if (window.Core && window.Core.initializeChat) {
+        window.Core.initializeChat();
+        console.log('Chat interface initialized from token auth');
+      }
+    });
   } else {
-    console.warn('Core.socket not ready, retrying in 1 second...');
     setTimeout(registerSocketHandlers, 1000);
   }
 }
