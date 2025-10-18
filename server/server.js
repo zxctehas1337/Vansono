@@ -6,6 +6,7 @@ const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../config.env') });
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { Pool } = require('pg');
 
 const app = express();
 const server = http.createServer(app);
@@ -16,7 +17,13 @@ const io = socketIo(server, {
   }
 });
 
-// Хранилище данных (в продакшене использовать БД)
+// PostgreSQL connection
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Хранилище данных в памяти (для быстрого доступа)
 const users = new Map(); // userId -> {id, name, username, passwordHash, createdAt}
 // Простая капча в памяти: socketId -> { question, answer, expiresAt }
 const captchaChallenges = new Map();
@@ -25,6 +32,86 @@ const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
 const channels = new Map(); // channelId -> {id, name, description, members, createdAt}
 const pinnedMessages = new Map(); // chatId -> [messageId1, messageId2, ...]
+
+// Initialize database tables
+async function initializeDatabase() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        username VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS messages (
+        id VARCHAR(255) PRIMARY KEY,
+        content TEXT NOT NULL,
+        user_id VARCHAR(255) NOT NULL,
+        chat_id VARCHAR(255) NOT NULL,
+        message_type VARCHAR(50) DEFAULT 'text',
+        audio_url TEXT,
+        duration INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chats (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        chat_type VARCHAR(50) DEFAULT 'private',
+        created_by VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS chat_participants (
+        id SERIAL PRIMARY KEY,
+        chat_id VARCHAR(255) NOT NULL,
+        user_id VARCHAR(255) NOT NULL,
+        joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (chat_id) REFERENCES chats(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE(chat_id, user_id)
+      )
+    `);
+    
+    console.log('Database tables initialized successfully');
+  } catch (error) {
+    console.error('Error initializing database:', error);
+  }
+}
+
+// Load users from database on startup
+async function loadUsersFromDatabase() {
+  try {
+    const result = await pool.query('SELECT * FROM users');
+    result.rows.forEach(user => {
+      users.set(user.id, {
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        passwordHash: user.password_hash,
+        createdAt: user.created_at
+      });
+    });
+    console.log(`Loaded ${users.size} users from database`);
+  } catch (error) {
+    console.error('Error loading users from database:', error);
+  }
+}
+
+// Initialize database
+initializeDatabase().then(() => {
+  loadUsersFromDatabase();
+});
 
 io.on('connection', (socket) => {
   console.log('', socket.id);
@@ -65,6 +152,14 @@ io.on('connection', (socket) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     const userId = uuidv4();
+    
+    // Save to database
+    await pool.query(
+      'INSERT INTO users (id, name, username, password_hash) VALUES ($1, $2, $3, $4)',
+      [userId, name, normalized, passwordHash]
+    );
+    
+    // Save to memory for quick access
     users.set(userId, {
       id: userId,
       name,
@@ -185,24 +280,45 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Поиск пользователей (в памяти)
+  // Поиск пользователей (из базы данных)
   socket.on('search_users', async (query) => {
     const q = String(query || '').trim().toLowerCase();
     if (!q) {
       socket.emit('search_results', []);
       return;
     }
-    const results = Array.from(users.values())
-      .filter(u => (u.username && u.username.toLowerCase().includes(q)) || (u.name && u.name.toLowerCase().includes(q)))
-      .map(u => ({ id: u.id, name: u.name, username: u.username }));
-    const onlineSet = new Set(Array.from(onlineUsers.values()));
-    const enriched = results.map(u => ({ ...u, online: onlineSet.has(u.id) }));
-    socket.emit('search_results', enriched);
+    
+    try {
+      // Search in database
+      const result = await pool.query(
+        'SELECT id, name, username FROM users WHERE LOWER(username) LIKE $1 OR LOWER(name) LIKE $1',
+        [`%${q}%`]
+      );
+      
+      const results = result.rows.map(u => ({ 
+        id: u.id, 
+        name: u.name, 
+        username: u.username 
+      }));
+      
+      const onlineSet = new Set(Array.from(onlineUsers.values()));
+      const enriched = results.map(u => ({ ...u, online: onlineSet.has(u.id) }));
+      socket.emit('search_results', enriched);
+    } catch (error) {
+      console.error('Error searching users:', error);
+      // Fallback to memory search
+      const results = Array.from(users.values())
+        .filter(u => (u.username && u.username.toLowerCase().includes(q)) || (u.name && u.name.toLowerCase().includes(q)))
+        .map(u => ({ id: u.id, name: u.name, username: u.username }));
+      const onlineSet = new Set(Array.from(onlineUsers.values()));
+      const enriched = results.map(u => ({ ...u, online: onlineSet.has(u.id) }));
+      socket.emit('search_results', enriched);
+    }
   });
 
   // Отправка сообщения
-  socket.on('message:send', (data) => {
-    const { to, text, isCallHistory, replyTo } = data;
+  socket.on('message:send', async (data) => {
+    const { to, text, isCallHistory, replyTo, type, audioUrl, duration } = data;
     const fromUserId = onlineUsers.get(socket.id);
 
     if (!fromUserId) return;
@@ -216,8 +332,21 @@ io.on('connection', (socket) => {
       isCallHistory: isCallHistory || false,
       edited: false,
       deleted: false,
-      replyTo: replyTo || null
+      replyTo: replyTo || null,
+      type: type || 'text',
+      audioUrl: audioUrl || null,
+      duration: duration || null
     };
+
+    // Save to database
+    try {
+      await pool.query(
+        'INSERT INTO messages (id, content, user_id, chat_id, message_type, audio_url, duration) VALUES ($1, $2, $3, $4, $5, $6, $7)',
+        [message.id, message.text, fromUserId, to, message.type, message.audioUrl, message.duration]
+      );
+    } catch (error) {
+      console.error('Error saving message to database:', error);
+    }
 
     messages.push(message);
 

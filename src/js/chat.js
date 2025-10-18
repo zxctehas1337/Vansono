@@ -50,7 +50,7 @@ function sendMessage() {
 function displayMessage(message) {
   const isSent = message.from === window.Core.currentUser.id;
   const messageEl = document.createElement('div');
-  messageEl.className = `message ${isSent ? 'sent' : ''} ${message.deleted ? 'deleted' : ''} ${message.isCallHistory ? 'call-history' : ''}`;
+  messageEl.className = `message ${isSent ? 'sent' : ''} ${message.deleted ? 'deleted' : ''} ${message.isCallHistory ? 'call-history' : ''} ${message.type === 'voice' ? 'voice-message' : ''}`;
   messageEl.dataset.messageId = message.id;
 
   const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
@@ -59,6 +59,45 @@ function displayMessage(message) {
   });
 
   const senderName = isSent ? window.Core.currentUser.name : window.Core.currentChatUser.name;
+
+  // Handle voice messages
+  if (message.type === 'voice') {
+    const duration = window.Core.formatDuration(message.duration);
+    
+    messageEl.innerHTML = `
+      <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
+      <div class="message-content">
+        <div class="voice-message">
+          <div class="voice-message-icon">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <path d="M8 1C6.34 1 5 2.34 5 4V8C5 9.66 6.34 11 8 11C9.66 11 11 9.66 11 8V4C11 2.34 9.66 1 8 1Z" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M6 6V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M10 6V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M8 6V8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="voice-message-info">
+            <div class="voice-message-duration">${duration}</div>
+            <div class="voice-message-waveform" id="waveform-${message.id}">
+              ${generateWaveform()}
+            </div>
+          </div>
+          <button class="voice-message-play-btn" onclick="playVoiceMessage('${message.id}', '${message.audioUrl}')">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="message-meta">
+          <div class="message-time">${time}</div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('messages-container').appendChild(messageEl);
+    window.Core.scrollToBottom();
+    return;
+  }
 
   // Special handling for call history messages
   if (message.isCallHistory) {
@@ -229,6 +268,16 @@ function displayMessage(message) {
   `;
 
   document.getElementById('messages-container').appendChild(messageEl);
+}
+
+// Generate waveform visualization
+function generateWaveform() {
+  let waveform = '';
+  for (let i = 0; i < 20; i++) {
+    const height = Math.random() * 20 + 4;
+    waveform += `<div class="waveform-bar" style="height: ${height}px;"></div>`;
+  }
+  return waveform;
 }
 
 // ===== SOCKET EVENT HANDLERS =====

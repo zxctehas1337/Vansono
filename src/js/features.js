@@ -77,25 +77,30 @@ function setupGroupChatModal() {
 
 // Populate members list
 function populateMembersList() {
-  // Get users from localStorage or create default users
-  let users = JSON.parse(localStorage.getItem('users') || '[]');
-  
-  // If no users exist, create some default users
-  if (users.length === 0) {
-    users = [
-      { id: '1', name: 'John Doe', username: 'john', email: 'john@example.com', avatar: 'J' },
-      { id: '2', name: 'Jane Smith', username: 'jane', email: 'jane@example.com', avatar: 'J' },
-      { id: '3', name: 'Bob Johnson', username: 'bob', email: 'bob@example.com', avatar: 'B' },
-      { id: '4', name: 'Alice Brown', username: 'alice', email: 'alice@example.com', avatar: 'A' },
-      { id: '5', name: 'Charlie Wilson', username: 'charlie', email: 'charlie@example.com', avatar: 'C' },
-      { id: '6', name: 'Diana Prince', username: 'diana', email: 'diana@example.com', avatar: 'D' },
-      { id: '7', name: 'Eve Adams', username: 'eve', email: 'eve@example.com', avatar: 'E' },
-      { id: '8', name: 'Frank Miller', username: 'frank', email: 'frank@example.com', avatar: 'F' }
-    ];
-    localStorage.setItem('users', JSON.stringify(users));
-  }
+  // Use server search to get all users
+  if (window.Core.socket && window.Core.socket.connected) {
+    window.Core.socket.emit('search_users', '');
+  } else {
+    // Fallback to localStorage
+    let users = JSON.parse(localStorage.getItem('users') || '[]');
+    
+    // If no users exist, create some default users
+    if (users.length === 0) {
+      users = [
+        { id: '1', name: 'John Doe', username: 'john', email: 'john@example.com', avatar: 'J' },
+        { id: '2', name: 'Jane Smith', username: 'jane', email: 'jane@example.com', avatar: 'J' },
+        { id: '3', name: 'Bob Johnson', username: 'bob', email: 'bob@example.com', avatar: 'B' },
+        { id: '4', name: 'Alice Brown', username: 'alice', email: 'alice@example.com', avatar: 'A' },
+        { id: '5', name: 'Charlie Wilson', username: 'charlie', email: 'charlie@example.com', avatar: 'C' },
+        { id: '6', name: 'Diana Prince', username: 'diana', email: 'diana@example.com', avatar: 'D' },
+        { id: '7', name: 'Eve Adams', username: 'eve', email: 'eve@example.com', avatar: 'E' },
+        { id: '8', name: 'Frank Miller', username: 'frank', email: 'frank@example.com', avatar: 'F' }
+      ];
+      localStorage.setItem('users', JSON.stringify(users));
+    }
 
-  renderMembersList(users);
+    renderMembersList(users);
+  }
 }
 
 // Render members list
@@ -140,20 +145,30 @@ function renderMembersList(users) {
 
 // Filter members based on search query
 function filterMembers(query) {
-  const users = JSON.parse(localStorage.getItem('users') || '[]');
-  
   if (!query.trim()) {
-    renderMembersList(users);
+    // If no query, get all users from server
+    if (window.Core.socket && window.Core.socket.connected) {
+      window.Core.socket.emit('search_users', '');
+    } else {
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      renderMembersList(users);
+    }
     return;
   }
   
-  const filteredUsers = users.filter(user => 
-    user.name.toLowerCase().includes(query) ||
-    user.username.toLowerCase().includes(query) ||
-    (user.email && user.email.toLowerCase().includes(query))
-  );
-  
-  renderMembersList(filteredUsers);
+  // Use server search for better results
+  if (window.Core.socket && window.Core.socket.connected) {
+    window.Core.socket.emit('search_users', query);
+  } else {
+    // Fallback to localStorage
+    const users = JSON.parse(localStorage.getItem('users') || '[]');
+    const filteredUsers = users.filter(user => 
+      user.name.toLowerCase().includes(query) ||
+      user.username.toLowerCase().includes(query) ||
+      (user.email && user.email.toLowerCase().includes(query))
+    );
+    renderMembersList(filteredUsers);
+  }
 }
 
 // Search users function
@@ -1110,7 +1125,7 @@ if (secretUserSearch) {
       return;
     }
     
-    // Search users via socket or use stored users
+    // Search users via socket
     if (window.Core.socket && window.Core.socket.connected) {
       window.Core.socket.emit('search_users', query);
     } else {
@@ -1129,10 +1144,15 @@ if (secretUserSearch) {
   }, 300));
 }
 
-// Listen for user search results for secret chat
+// Listen for user search results
 if (window.Core.socket) {
   window.Core.socket.on('search_results', (users) => {
-    // Only update if we're currently searching for secret chat users
+    // Update group members list if we're in group creation modal
+    if (createGroupModal && createGroupModal.classList.contains('active')) {
+      renderMembersList(users);
+    }
+    
+    // Update secret chat user search if we're searching for secret chat users
     if (secretUserSearch && secretUserSearch === document.activeElement) {
       displaySecretUserResults(users);
     }
