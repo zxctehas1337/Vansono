@@ -12,6 +12,138 @@
   <link rel="stylesheet" href="css/call.css">
   <link rel="stylesheet" href="css/ui.css">
   <link rel="stylesheet" href="css/features.css">
+  
+  <!-- Critical inline styles to prevent grey screen if CSS fails to load -->
+  <style>
+    /* Critical base styles */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f0f0f !important;
+      color: #ffffff !important;
+      overflow: hidden;
+      height: 100vh;
+    }
+    
+    /* Screen display rules */
+    .screen { 
+      display: none !important;
+      width: 100%;
+      height: 100vh;
+    }
+    .screen.active { 
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+    }
+    
+    /* Force chat screen visibility */
+    #chat-screen.active {
+      display: flex !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      background: #0f0f0f !important;
+      width: 100% !important;
+      height: 100vh !important;
+    }
+    
+    #chat-screen.active .chat-layout {
+      display: flex !important;
+      visibility: visible !important;
+      width: 100% !important;
+      height: 100vh !important;
+    }
+    
+    #chat-screen.active .sidebar {
+      display: flex !important;
+      visibility: visible !important;
+      width: 360px !important;
+      background: #1a1a1a !important;
+      flex-direction: column !important;
+      border-right: 1px solid #333333 !important;
+    }
+    
+    #chat-screen.active .chat-main {
+      display: flex !important;
+      visibility: visible !important;
+      flex: 1 !important;
+      background: #0f0f0f !important;
+      flex-direction: column !important;
+    }
+    
+    /* Auth screen hiding */
+    #auth-screen {
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 100%);
+    }
+    
+    #auth-screen:not(.active) {
+      display: none !important;
+      visibility: hidden !important;
+      opacity: 0 !important;
+    }
+    
+    /* Basic styling for sidebar elements */
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #333;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .user-profile {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 18px;
+      flex-shrink: 0;
+      color: white;
+    }
+    
+    /* Empty state */
+    .empty-state {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      color: #a0a0a0;
+    }
+    
+    .chats-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    
+    .chat-item {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-radius: 12px;
+      cursor: pointer;
+      margin-bottom: 4px;
+    }
+    
+    .chat-item:hover {
+      background: #252525;
+    }
+  </style>
 </head>
 <body>
   <!-- Registration Screen -->
