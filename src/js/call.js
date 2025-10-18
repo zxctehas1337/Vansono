@@ -58,6 +58,13 @@ function createCallHistoryMessage(callType, status, duration = null) {
 
 async function initiateCall(video) {
   try {
+    // Check if SimplePeer is available
+    if (typeof SimplePeer === 'undefined') {
+      console.error('SimplePeer library not loaded');
+      window.Core.showNotification('Call functionality not available', 'error');
+      return;
+    }
+
     window.Core.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video
@@ -92,7 +99,7 @@ async function initiateCall(video) {
     window.Core.callStartTime = Date.now();
   } catch (error) {
     console.error('Error accessing media devices:', error);
-    alert('Unable to access camera/microphone');
+    window.Core.showNotification('Unable to access camera/microphone', 'error');
   }
 }
 
@@ -124,6 +131,13 @@ acceptCallBtn.addEventListener('click', async () => {
   if (!window.Core.currentCallData) return;
   
   try {
+    // Check if SimplePeer is available
+    if (typeof SimplePeer === 'undefined') {
+      console.error('SimplePeer library not loaded');
+      window.Core.showNotification('Call functionality not available', 'error');
+      return;
+    }
+
     window.Core.localStream = await navigator.mediaDevices.getUserMedia({
       audio: true,
       video: window.Core.currentCallData.callType === 'video'
@@ -164,6 +178,7 @@ acceptCallBtn.addEventListener('click', async () => {
     window.Core.callStartTime = Date.now();
   } catch (error) {
     console.error('Error answering call:', error);
+    window.Core.showNotification('Error answering call', 'error');
     endCall();
   }
 });

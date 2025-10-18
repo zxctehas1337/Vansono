@@ -96,6 +96,8 @@ async function initializeDatabase() {
     console.log('Database tables initialized successfully');
   } catch (error) {
     console.error('Error initializing database:', error);
+    // If database initialization fails, continue without database
+    console.log('Continuing without database - using in-memory storage only');
   }
 }
 
@@ -115,6 +117,7 @@ async function loadUsersFromDatabase() {
     console.log(`Loaded ${users.size} users from database`);
   } catch (error) {
     console.error('Error loading users from database:', error);
+    console.log('Continuing without loading users from database');
   }
 }
 
@@ -354,6 +357,7 @@ io.on('connection', (socket) => {
       );
     } catch (error) {
       console.error('Error saving message to database:', error);
+      // Continue without database if it fails
     }
 
     messages.push(message);
@@ -448,12 +452,40 @@ io.on('connection', (socket) => {
   });
 
   // Получение истории сообщений
-  socket.on('messages:get', (data) => {
+  socket.on('messages:get', async (data) => {
     const { userId } = data;
     const currentUserId = onlineUsers.get(socket.id);
 
     if (!currentUserId) return;
 
+    // Try to load from database first
+    try {
+      const result = await pool.query(
+        'SELECT * FROM messages WHERE (user_id = $1 AND chat_id = $2) OR (user_id = $2 AND chat_id = $1) ORDER BY created_at ASC',
+        [currentUserId, userId]
+      );
+      
+      if (result.rows.length > 0) {
+        const chatMessages = result.rows.map(row => ({
+          id: row.id,
+          from: row.user_id,
+          to: row.chat_id,
+          text: row.content,
+          timestamp: new Date(row.created_at).getTime(),
+          type: row.message_type || 'text',
+          audioUrl: row.audio_url,
+          duration: row.duration,
+          edited: false,
+          deleted: false
+        }));
+        socket.emit('messages:history', chatMessages);
+        return;
+      }
+    } catch (error) {
+      console.error('Error loading messages from database:', error);
+    }
+
+    // Fallback to in-memory storage
     const chatMessages = messages.filter(m =>
       (m.from === currentUserId && m.to === userId) ||
       (m.from === userId && m.to === currentUserId)

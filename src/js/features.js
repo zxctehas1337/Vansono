@@ -474,6 +474,12 @@ function setupVoiceRecording() {
 // Start voice recording
 async function startVoiceRecording() {
   try {
+    // Check if MediaRecorder is supported
+    if (!window.MediaRecorder) {
+      window.Core.showNotification('Voice recording not supported in this browser', 'error');
+      return;
+    }
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     mediaRecorder = new MediaRecorder(stream);
     audioChunks = [];
@@ -487,13 +493,15 @@ async function startVoiceRecording() {
       const audioUrl = URL.createObjectURL(audioBlob);
       
       // Show send button
-      voiceStopBtn.style.display = 'none';
-      voiceSendBtn.style.display = 'flex';
-      voiceRecordingStatus.textContent = 'Recording complete';
+      if (voiceStopBtn) voiceStopBtn.style.display = 'none';
+      if (voiceSendBtn) voiceSendBtn.style.display = 'flex';
+      if (voiceRecordingStatus) voiceRecordingStatus.textContent = 'Recording complete';
       
       // Store audio for sending
-      voiceSendBtn.dataset.audioUrl = audioUrl;
-      voiceSendBtn.dataset.audioBlob = audioBlob;
+      if (voiceSendBtn) {
+        voiceSendBtn.dataset.audioUrl = audioUrl;
+        voiceSendBtn.dataset.audioBlob = audioBlob;
+      }
     };
     
     mediaRecorder.start();
@@ -501,8 +509,9 @@ async function startVoiceRecording() {
     recordingStartTime = Date.now();
     
     // Show recording panel
-    voiceRecordingPanel.style.display = 'block';
-    document.getElementById('message-input').style.display = 'none';
+    if (voiceRecordingPanel) voiceRecordingPanel.style.display = 'block';
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) messageInput.style.display = 'none';
     
     // Start timer
     startRecordingTimer();
