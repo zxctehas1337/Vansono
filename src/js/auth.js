@@ -47,18 +47,24 @@ function requestCaptcha(forLogin = false) {
   }
 }
 
-const socket = getCoreSocket();
-if (socket) {
-  socket.on('captcha:question', ({ question }) => {
-    // Always display on both forms so user can switch without missing it
-    if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
-    if (captchaQuestion) captchaQuestion.textContent = question;
-  });
-} else {
-  // We do NOT throw here; if UI loads before socket, handler can be registered later in an init function.
-  // Optional: Add a warning for developers
-  console.warn('Core.socket not available to register captcha:question listener');
+// Register captcha question handler when socket is available
+function registerCaptchaHandler() {
+  const socket = getCoreSocket();
+  if (socket) {
+    socket.on('captcha:question', ({ question }) => {
+      // Always display on both forms so user can switch without missing it
+      if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
+      if (captchaQuestion) captchaQuestion.textContent = question;
+    });
+  } else {
+    // We do NOT throw here; if UI loads before socket, handler can be registered later in an init function.
+    // Optional: Add a warning for developers
+    console.warn('Core.socket not available to register captcha:question listener');
+  }
 }
+
+// Call the handler registration
+registerCaptchaHandler();
 
 if (captchaRefresh) captchaRefresh.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(false); });
 if (captchaRefreshLogin) captchaRefreshLogin.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(true); });
@@ -98,20 +104,51 @@ if (loginBtn) {
     loginUsername.value = username;
   }
 
-  window.Core.socket.emit('login', { username, password, captchaAnswer });
+  const socket = getCoreSocket();
+  if (socket) {
+    socket.emit('login', { username, password, captchaAnswer });
+  } else {
+    showError('Connection not available. Please try again.');
+  }
   });
 }
 
-// Persist token and auto-login
-window.Core.socket.on('login:success', (data) => {
-  if (data.token) {
-    localStorage.setItem('authToken', data.token);
-    localStorage.setItem('userData', JSON.stringify(data.user));
+// Register auth socket handlers
+function registerAuthHandlers() {
+  const socket = getCoreSocket();
+  if (socket) {
+    // Persist token and auto-login
+    socket.on('login:success', (data) => {
+      if (data.token) {
+        localStorage.setItem('authToken', data.token);
+        localStorage.setItem('userData', JSON.stringify(data.user));
+      }
+      window.Core.currentUser = data.user;
+      window.Core.updateUserDisplay(data.user);
+      window.Core.initializeChat();
+    });
+
+    socket.on('auth:success', (data) => {
+      window.Core.currentUser = data.user;
+      localStorage.setItem('userData', JSON.stringify(data.user));
+      document.getElementById('auth-screen').classList.remove('active');
+      document.getElementById('chat-screen').classList.add('active');
+      window.Core.updateUserDisplay(data.user);
+    });
+
+    socket.on('auth:error', () => {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('userData');
+      document.getElementById('auth-screen').classList.add('active');
+      document.getElementById('chat-screen').classList.remove('active');
+      requestCaptcha(false);
+    });
+
+    socket.on('login:error', (data) => {
+      showError(data.message);
+    });
   }
-  window.Core.currentUser = data.user;
-  window.Core.updateUserDisplay(data.user);
-  window.Core.initializeChat();
-});
+}
 
 // Auto-login on page load
 window.addEventListener('load', () => {
@@ -122,7 +159,10 @@ window.addEventListener('load', () => {
     try {
       const user = JSON.parse(userData);
       window.Core.currentUser = user;
-      window.Core.socket.emit('auth:token', token);
+      const socket = getCoreSocket();
+      if (socket) {
+        socket.emit('auth:token', token);
+      }
     } catch (error) {
       console.error('Error parsing user data:', error);
       localStorage.removeItem('authToken');
@@ -135,25 +175,8 @@ window.addEventListener('load', () => {
   }
 });
 
-window.Core.socket.on('auth:success', (data) => {
-  window.Core.currentUser = data.user;
-  localStorage.setItem('userData', JSON.stringify(data.user));
-  document.getElementById('auth-screen').classList.remove('active');
-  document.getElementById('chat-screen').classList.add('active');
-  window.Core.updateUserDisplay(data.user);
-});
-
-window.Core.socket.on('auth:error', () => {
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('userData');
-  document.getElementById('auth-screen').classList.add('active');
-  document.getElementById('chat-screen').classList.remove('active');
-  requestCaptcha(false);
-});
-
-window.Core.socket.on('login:error', (data) => {
-  showError(data.message);
-});
+// Register auth handlers
+registerAuthHandlers();
 
 // Form switching
 showLoginLink.addEventListener('click', (e) => {

@@ -70,123 +70,29 @@ function handleRouting() {
 // Show chats list
 function showChatsList() {
   console.log('showChatsList called, chatScreen active:', chatScreen && chatScreen.classList.contains('active'));
-  console.log('Elements exist?', {
-    chatScreen: !!chatScreen,
-    chatContainer: !!chatContainer,
-    emptyState: !!emptyState,
-    chatsList: !!chatsList
-  });
   
   if (chatScreen && chatScreen.classList.contains('active')) {
-    // Ensure all required elements are visible
+    // Show the empty state and hide any open chat
     if (chatContainer) chatContainer.style.display = 'none';
     if (emptyState) emptyState.style.display = 'block';
+    
+    // Ensure chats list is visible
     if (chatsList) chatsList.style.display = 'block';
     
-    // Force visibility of all chat elements
-    const sidebar = document.querySelector('.sidebar');
-    const chatMain = document.querySelector('.chat-main');
-    
-    if (sidebar) {
-      sidebar.style.display = 'flex';
-      sidebar.style.visibility = 'visible';
-      sidebar.style.opacity = '1';
-      console.log('Sidebar made visible');
-    }
-    
-    if (chatMain) {
-      chatMain.style.display = 'flex';
-      chatMain.style.visibility = 'visible';
-      chatMain.style.opacity = '1';
-      console.log('Chat main made visible');
-    }
-    
-    // Force the entire chat screen to be visible with emergency styles
-    if (chatScreen) {
-      chatScreen.style.cssText = `
-        display: flex !important;
-        opacity: 1 !important;
-        visibility: visible !important;
-        z-index: 1 !important;
-        width: 100% !important;
-        height: 100vh !important;
-        background: #0f0f0f !important;
-        color: #ffffff !important;
-      `;
-      console.log('Chat screen emergency styles applied');
-    }
-    
-    // Emergency styles for chat layout
-    const chatLayout = document.querySelector('.chat-layout');
-    if (chatLayout) {
-      chatLayout.style.cssText = `
-        display: flex !important;
-        width: 100% !important;
-        height: 100vh !important;
-        background: #0f0f0f !important;
-      `;
-      console.log('Chat layout emergency styles applied');
-    }
-    
-    // Debug: check all screen states
-    const allScreens = document.querySelectorAll('.screen');
-    console.log('All screens state:');
-    allScreens.forEach(screen => {
-      console.log(`- ${screen.id}: active=${screen.classList.contains('active')}, display=${getComputedStyle(screen).display}, zIndex=${getComputedStyle(screen).zIndex}`);
+    // Clear active chat selection
+    document.querySelectorAll('.chat-item').forEach(item => {
+      item.classList.remove('active');
     });
     
-    // Force hide auth screen completely
-    if (authScreen) {
-      authScreen.style.cssText = `
-        display: none !important;
-        opacity: 0 !important;
-        visibility: hidden !important;
-        z-index: -1 !important;
-      `;
-      console.log('Auth screen forcibly hidden');
-    }
-    
-    // Add a bright test element to see if ANYTHING renders
-    const testDiv = document.createElement('div');
-    testDiv.style.cssText = `
-      position: fixed !important;
-      top: 0 !important;
-      left: 0 !important;
-      width: 100px !important;
-      height: 100px !important;
-      background: #ff0000 !important;
-      z-index: 9999 !important;
-      border: 5px solid #00ff00 !important;
-    `;
-    testDiv.textContent = 'TEST';
-    document.body.appendChild(testDiv);
-    console.log('Red test element added to screen');
-    
-    // Force body styles
-    document.body.style.cssText = `
-      margin: 0 !important;
-      padding: 0 !important;
-      background: #ff00ff !important;
-      color: #ffffff !important;
-      font-family: Arial !important;
-    `;
-    console.log('Body emergency styles applied');
-    }
-    
-    console.log('Chat elements visibility:', {
-      chatContainer: chatContainer ? chatContainer.style.display : 'null',
-      emptyState: emptyState ? emptyState.style.display : 'null',
-      chatsList: chatsList ? chatsList.style.display : 'null',
-      sidebar: sidebar ? sidebar.style.display : 'null'
-    });
-    
-    // Update URL
-    window.history.pushState({}, '', '/chats');
-    
-    // Clear current chat user
-    currentChatUser = null;
+    console.log('Chat list view activated');
   }
-
+  
+  // Update URL
+  window.history.pushState({}, '', '/chats');
+  
+  // Clear current chat user
+  currentChatUser = null;
+}
 
 
 // Scroll to bottom of messages container
@@ -314,15 +220,28 @@ function updateUserDisplay(user) {
 function initializeChat() {
   console.log('initializeChat called, currentUser:', currentUser);
   
-  if (authScreen) authScreen.classList.remove('active');
-  if (chatScreen) chatScreen.classList.add('active');
+  // Transition from auth to chat screen
+  if (authScreen) {
+    authScreen.classList.remove('active');
+    console.log('Auth screen hidden');
+  }
   
+  if (chatScreen) {
+    chatScreen.classList.add('active');
+    console.log('Chat screen activated');
+  }
+  
+  // Update user display
   if (currentUser) {
     updateUserDisplay(currentUser);
-    console.log('User display updated');
+    console.log('User display updated for:', currentUser.name);
   } else {
     console.warn('No current user available for display');
   }
+  
+  // Request the users list from server
+  console.log('Requesting users list from server');
+  socket.emit('users:get');
   
   // Handle routing after authentication
   handleRouting();

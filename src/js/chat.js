@@ -253,50 +253,59 @@ if (coreSocket) {
     if (message.from === (window.Core && window.Core.currentUser ? window.Core.currentUser.id : null)) {
       return; // Skip messages from current user as they're handled by message:sent
     }
+    
+    if (window.Core.currentChatUser && message.from === window.Core.currentChatUser.id) {
+      displayMessage(message);
+      window.Core.scrollToBottom();
+      
+      // Play notification sound for incoming messages
+      if (window.Call && window.Call.playNotificationSound) {
+        window.Call.playNotificationSound('notification');
+      }
+    } else {
+      // Show desktop notification for messages from other users
+      window.Core.showDesktopNotification(
+        'New Message',
+        `${message.from === window.Core.currentUser.id ? 'You' : 'Someone'} sent a message`,
+        '/favicon.ico'
+      );
+      
+      // Play notification sound for messages from other chats
+      if (window.Call && window.Call.playNotificationSound) {
+        window.Call.playNotificationSound('notification');
+      }
+    }
   });
 } else {
   // Socket not available, optionally log for debugging
   console.warn('Core.socket not available for registering chat event listeners');
 }
-  
-  if (window.Core.currentChatUser && message.from === window.Core.currentChatUser.id) {
-    displayMessage(message);
-    window.Core.scrollToBottom();
-    
-    // Play notification sound for incoming messages
-    if (window.Call && window.Call.playNotificationSound) {
-      window.Call.playNotificationSound('notification');
-    }
-  } else {
-    // Show desktop notification for messages from other users
-    window.Core.showDesktopNotification(
-      'New Message',
-      `${message.from === window.Core.currentUser.id ? 'You' : 'Someone'} sent a message`,
-      '/favicon.ico'
-    );
-    
-    // Play notification sound for messages from other chats
-    if (window.Call && window.Call.playNotificationSound) {
-      window.Call.playNotificationSound('notification');
-    }
-  }
 
-// Message sent confirmation
-window.Core.socket.on('message:sent', (message) => {
-  // Display all sent messages, including voice messages
-  displayMessage(message);
-  window.Core.scrollToBottom();
-});
+// Register additional socket handlers when socket is available
+function registerAdditionalChatHandlers() {
+  const socket = getCoreSocketSafe();
+  if (socket) {
+    // Message sent confirmation
+    socket.on('message:sent', (message) => {
+      // Display all sent messages, including voice messages
+      displayMessage(message);
+      window.Core.scrollToBottom();
+    });
 
-// Message read confirmation
-window.Core.socket.on('messages:read', (data) => {
-  // Update read status for messages from the current chat user
-  if (window.Core.currentChatUser && data.from === window.Core.currentChatUser.id) {
-    // Re-render messages to show updated read status
-    document.getElementById('messages-container').innerHTML = '';
-    window.Core.socket.emit('messages:get', { userId: window.Core.currentChatUser.id });
+    // Message read confirmation
+    socket.on('messages:read', (data) => {
+      // Update read status for messages from the current chat user
+      if (window.Core.currentChatUser && data.from === window.Core.currentChatUser.id) {
+        // Re-render messages to show updated read status
+        document.getElementById('messages-container').innerHTML = '';
+        socket.emit('messages:get', { userId: window.Core.currentChatUser.id });
+      }
+    });
   }
-});
+}
+
+// Register handlers
+registerAdditionalChatHandlers();
 
 // ===== MESSAGE ACTIONS =====
 

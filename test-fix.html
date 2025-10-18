@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test JavaScript Fixes</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background: #0f0f0f; 
+            color: #fff; 
+        }
+        .test-result { 
+            margin: 10px 0; 
+            padding: 10px; 
+            border-radius: 5px; 
+        }
+        .success { background: #10B981; }
+        .error { background: #EF4444; }
+        .log { 
+            background: #1a1a2e; 
+            padding: 10px; 
+            border-radius: 5px; 
+            font-family: monospace; 
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .screen { display: none; }
+        .screen.active { display: block; }
+        #auth-screen { background: #1a1a2e; padding: 20px; }
+        #chat-screen { background: #0f0f0f; padding: 20px; }
+    </style>
+</head>
+<body>
+    <h1>JavaScript Fixes Test</h1>
+    <div id="test-results"></div>
+    <div id="console-log" class="log"></div>
+    
+    <!-- Mock DOM elements -->
+    <div id="auth-screen" class="screen active">Auth Screen</div>
+    <div id="chat-screen" class="screen">Chat Screen</div>
+    <div id="chats-list"></div>
+    <div id="empty-state"></div>
+    <div id="chat-container"></div>
+    <div id="messages-container"></div>
+    <div id="current-user-name"></div>
+    <div id="current-user-username"></div>
+    <div id="current-user-avatar"></div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        // Mock console to capture logs
+        const originalConsole = {
+            log: console.log,
+            warn: console.warn,
+            error: console.error
+        };
+        
+        const logs = [];
+        ['log', 'warn', 'error'].forEach(method => {
+            console[method] = (...args) => {
+                logs.push({type: method, message: args.join(' ')});
+                originalConsole[method](...args);
+                updateLogDisplay();
+            };
+        });
+        
+        function updateLogDisplay() {
+            const logDiv = document.getElementById('console-log');
+            logDiv.innerHTML = logs.map(log => 
+                `<div class="${log.type}">[${log.type.toUpperCase()}] ${log.message}</div>`
+            ).join('');
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function addTestResult(name, success, error) {
+            const resultsDiv = document.getElementById('test-results');
+            const div = document.createElement('div');
+            div.className = `test-result ${success ? 'success' : 'error'}`;
+            div.innerHTML = `<strong>${name}:</strong> ${success ? 'PASS' : 'FAIL'} ${error ? `- ${error}` : ''}`;
+            resultsDiv.appendChild(div);
+        }
+        
+        // Test loading modules
+        let testsPassed = 0;
+        let testsTotal = 0;
+        
+        function runTest(name, testFn) {
+            testsTotal++;
+            try {
+                testFn();
+                addTestResult(name, true);
+                testsPassed++;
+            } catch (error) {
+                addTestResult(name, false, error.message);
+            }
+        }
+    </script>
+    
+    <!-- Load the modules in order -->
+    <script src="src/js/core.js"></script>
+    <script src="src/js/auth.js"></script>
+    <script src="src/js/chat.js"></script>
+    
+    <script>
+        // Run tests after modules load
+        setTimeout(() => {
+            runTest('Core module loads', () => {
+                if (!window.Core) throw new Error('Core module not found');
+                if (!window.Core.socket) throw new Error('Core.socket not available');
+            });
+            
+            runTest('Auth module socket handling', () => {
+                // Should not throw errors about duplicate socket declaration
+                if (typeof getCoreSocket !== 'function') throw new Error('getCoreSocket function not available');
+            });
+            
+            runTest('Chat module socket handling', () => {
+                // Should not throw errors about undefined message variable
+                if (typeof getCoreSocketSafe !== 'function') throw new Error('getCoreSocketSafe function not available');
+            });
+            
+            runTest('Core showChatsList function', () => {
+                if (!window.Core.showChatsList) throw new Error('showChatsList not available');
+                // This should not throw about undefined sidebar variable
+                window.Core.showChatsList();
+            });
+            
+            runTest('Core initializeChat function', () => {
+                if (!window.Core.initializeChat) throw new Error('initializeChat not available');
+                // Should not crash
+                window.Core.initializeChat();
+            });
+            
+            // Summary
+            setTimeout(() => {
+                const summaryDiv = document.createElement('div');
+                summaryDiv.className = `test-result ${testsPassed === testsTotal ? 'success' : 'error'}`;
+                summaryDiv.innerHTML = `<strong>SUMMARY:</strong> ${testsPassed}/${testsTotal} tests passed`;
+                document.getElementById('test-results').appendChild(summaryDiv);
+            }, 100);
+            
+        }, 500);
+    </script>
+</body>
+</html>
