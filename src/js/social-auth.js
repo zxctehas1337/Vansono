@@ -5,7 +5,7 @@
 const VK_CONFIG = {
   app: 54249385,
   redirectUrl: window.location.origin + '/',
-  responseMode: 'callback',
+  responseMode: 'popup', // Изменено с 'callback' на 'popup'
   source: 'lowcode',
   scope: ''
 };
@@ -19,7 +19,7 @@ function initializeVKID() {
       VKID.Config.init({
         app: VK_CONFIG.app,
         redirectUrl: VK_CONFIG.redirectUrl,
-        responseMode: VKID.ConfigResponseMode.Callback,
+        responseMode: VKID.ConfigResponseMode.Popup, // Изменено с Callback на Popup
         source: VKID.ConfigSource.LOWCODE,
         scope: VK_CONFIG.scope
       });
@@ -40,13 +40,19 @@ function initializeVKID() {
         ]
       })
       .on(VKID.WidgetEvents.ERROR, handleVKIDError)
-      .on(VKID.OneTapInternalEvents.LOGIN_SUCCESS, function (payload) {
-        const code = payload.code;
-        const deviceId = payload.device_id;
+      .on(VKID.WidgetEvents.LOGIN_SUCCESS, function (payload) {
+        // В popup режиме payload содержит готовые данные
+        if (payload.access_token) {
+          handleVKIDSuccess(payload);
+        } else {
+          // Если есть code, обмениваем его на токен
+          const code = payload.code;
+          const deviceId = payload.device_id;
 
-        VKID.Auth.exchangeCode(code, deviceId)
-          .then(handleVKIDSuccess)
-          .catch(handleVKIDError);
+          VKID.Auth.exchangeCode(code, deviceId)
+            .then(handleVKIDSuccess)
+            .catch(handleVKIDError);
+        }
       });
 
       console.log('VK ID SDK initialized successfully');
@@ -69,7 +75,7 @@ function handleVKIDSuccess(data) {
     window.Core.socket.emit('social:auth', {
       provider: 'vk',
       accessToken: data.access_token,
-      userInfo: data.user
+      userInfo: data.user || data // В popup режиме данные могут быть в корне объекта
     });
   } else {
     showVKIDError('No access token received from VK ID');

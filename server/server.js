@@ -149,12 +149,39 @@ async function verifyVKToken(accessToken) {
     });
 
     if (response.data.error) {
+      // Специальная обработка ошибки IP-адреса
+      if (response.data.error.error_code === 27) {
+        throw new Error('VK token is invalid for this server IP. Please try again.');
+      }
       throw new Error(response.data.error.error_msg);
     }
 
     return response.data.response[0];
   } catch (error) {
     console.error('VK API error:', error);
+    throw error;
+  }
+}
+
+// Альтернативная функция для получения данных пользователя через service key
+async function getVKUserByServiceKey(userId) {
+  try {
+    const response = await axios.get('https://api.vk.com/method/users.get', {
+      params: {
+        user_ids: userId,
+        fields: 'id,first_name,last_name,screen_name,photo_200',
+        access_token: VK_SERVICE_KEY,
+        v: '5.131'
+      }
+    });
+
+    if (response.data.error) {
+      throw new Error(response.data.error.error_msg);
+    }
+
+    return response.data.response[0];
+  } catch (error) {
+    console.error('VK Service API error:', error);
     throw error;
   }
 }
@@ -390,7 +417,23 @@ io.on('connection', (socket) => {
       let verifiedUserInfo;
       
       if (provider === 'vk') {
-        verifiedUserInfo = await verifyVKToken(accessToken);
+        try {
+          verifiedUserInfo = await verifyVKToken(accessToken);
+        } catch (error) {
+          // Если ошибка связана с IP-адресом, попробуем использовать service key
+          if (error.message.includes('IP') || error.message.includes('invalid for this server')) {
+            console.log('Trying alternative VK authentication method...');
+            // Извлекаем user_id из токена или используем данные из userInfo
+            const userId = userInfo?.id || userInfo?.user_id;
+            if (userId) {
+              verifiedUserInfo = await getVKUserByServiceKey(userId);
+            } else {
+              throw new Error('Unable to authenticate with VK. Please try again.');
+            }
+          } else {
+            throw error;
+          }
+        }
       } else {
         socket.emit('social:auth:error', { message: 'Unsupported provider' });
         return;
