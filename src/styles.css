@@ -35,6 +35,10 @@ body {
   height: 100vh;
   animation: fadeIn 0.3s ease;
 }
+.icon {
+  width: 24px;
+  height: 24px;
+}
 
 .screen.active {
   display: flex;
