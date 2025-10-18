@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VK ID Debug</title>
+</head>
+<body>
+    <h1>VK ID Configuration Debug</h1>
+    <div id="debug-info"></div>
+    <div id="vk-auth-widget"></div>
+    
+    <script src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"></script>
+    <script>
+        const debugInfo = document.getElementById('debug-info');
+        
+        function log(message) {
+            console.log(message);
+            debugInfo.innerHTML += '<p>' + message + '</p>';
+        }
+        
+        log('Current URL: ' + window.location.href);
+        log('Origin: ' + window.location.origin);
+        log('VK ID SDK loaded: ' + ('VKIDSDK' in window));
+        
+        if ('VKIDSDK' in window) {
+            const VKID = window.VKIDSDK;
+            
+            const config = {
+                app: 54249385,
+                redirectUrl: window.location.origin,
+                responseMode: VKID.ConfigResponseMode.Popup,
+                source: VKID.ConfigSource.LOWCODE,
+                scope: ''
+            };
+            
+            log('Config: ' + JSON.stringify(config, null, 2));
+            
+            try {
+                VKID.Config.init(config);
+                log('VK ID Config initialized successfully');
+                
+                const oneTap = new VKID.OneTap();
+                
+                oneTap.render({
+                    container: document.getElementById('vk-auth-widget'),
+                    scheme: 'dark',
+                    showAlternativeLogin: true,
+                    styles: {
+                        borderRadius: 50,
+                        width: 415
+                    },
+                    oauthList: [
+                        'mail_ru',
+                        'ok_ru'
+                    ]
+                })
+                .on(VKID.WidgetEvents.ERROR, function(error) {
+                    log('VK ID Error: ' + JSON.stringify(error, null, 2));
+                })
+                .on(VKID.WidgetEvents.LOGIN_SUCCESS, function(payload) {
+                    log('VK ID Login Success: ' + JSON.stringify(payload, null, 2));
+                });
+                
+                log('VK ID Widget rendered');
+                
+            } catch (error) {
+                log('VK ID Error: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

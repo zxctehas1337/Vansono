@@ -4,8 +4,8 @@
 // VK ID Configuration
 const VK_CONFIG = {
   app: 54249385,
-  redirectUrl: window.location.origin + '/',
-  responseMode: 'callback', // Возвращаем callback режим для стабильности
+  redirectUrl: window.location.origin, // Убираем слеш в конце для совместимости с настройками VK
+  responseMode: 'popup', // Переключаемся на popup режим для лучшей совместимости
   source: 'lowcode',
   scope: ''
 };
@@ -15,11 +15,13 @@ function initializeVKID() {
   if ('VKIDSDK' in window) {
     const VKID = window.VKIDSDK;
     
+    console.log('Initializing VK ID with config:', VK_CONFIG);
+    
     try {
       VKID.Config.init({
         app: VK_CONFIG.app,
         redirectUrl: VK_CONFIG.redirectUrl,
-        responseMode: VKID.ConfigResponseMode.Callback, // Используем Callback режим
+        responseMode: VKID.ConfigResponseMode.Popup, // Используем Popup режим
         source: VKID.ConfigSource.LOWCODE,
         scope: VK_CONFIG.scope
       });
@@ -135,6 +137,10 @@ function handleVKIDError(error) {
         // Не показываем ошибку, если пользователь сам закрыл popup
         console.log('User closed the authentication popup');
         return;
+      case 'invalid_redirect_uri':
+        errorMessage = 'Redirect URL configuration error. Please contact support.';
+        console.error('Redirect URI error - check VK app settings');
+        break;
       default:
         errorMessage = error.error_description || errorMessage;
     }
@@ -148,6 +154,14 @@ function handleVKIDError(error) {
   } else if (typeof error === 'string') {
     errorMessage = error;
   }
+  
+  // Показываем детальную ошибку в консоли для отладки
+  console.error('Detailed error info:', {
+    error: error,
+    redirectUrl: VK_CONFIG.redirectUrl,
+    appId: VK_CONFIG.app,
+    responseMode: VK_CONFIG.responseMode
+  });
   
   showVKIDError(errorMessage);
 }
@@ -198,14 +212,26 @@ function retryVKIDInit() {
 
 // Initialize social auth when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+  console.log('DOM loaded, initializing VK ID...');
+  
   // Wait for VK ID SDK to load
   setTimeout(() => {
     if ('VKIDSDK' in window) {
+      console.log('VK ID SDK found, initializing...');
       initializeVKID();
     } else {
+      console.log('VK ID SDK not found, retrying...');
       retryVKIDInit();
     }
   }, 1000);
+  
+  // Дополнительная проверка через 3 секунды
+  setTimeout(() => {
+    if (!document.getElementById('vk-auth-widget').hasChildNodes()) {
+      console.log('VK ID widget not rendered, trying alternative initialization...');
+      retryVKIDInit();
+    }
+  }, 3000);
 });
 
 // Export functions for other modules
