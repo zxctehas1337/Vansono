@@ -70,17 +70,31 @@ function handleRouting() {
 // Show chats list
 function showChatsList() {
   console.log('showChatsList called, chatScreen active:', chatScreen && chatScreen.classList.contains('active'));
+  console.log('Elements exist?', {
+    chatScreen: !!chatScreen,
+    chatContainer: !!chatContainer,
+    emptyState: !!emptyState,
+    chatsList: !!chatsList
+  });
   
   if (chatScreen && chatScreen.classList.contains('active')) {
-    // Hide any open chat
-    chatContainer.style.display = 'none';
-    emptyState.style.display = 'block';
-    chatsList.style.display = 'block';
+    // Ensure all required elements are visible
+    if (chatContainer) chatContainer.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'block';
+    if (chatsList) chatsList.style.display = 'block';
+    
+    // Also ensure sidebar is visible
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) {
+      sidebar.style.display = 'flex';
+      console.log('Sidebar made visible');
+    }
     
     console.log('Chat elements visibility:', {
-      chatContainer: chatContainer.style.display,
-      emptyState: emptyState.style.display,
-      chatsList: chatsList.style.display
+      chatContainer: chatContainer ? chatContainer.style.display : 'null',
+      emptyState: emptyState ? emptyState.style.display : 'null',
+      chatsList: chatsList ? chatsList.style.display : 'null',
+      sidebar: sidebar ? sidebar.style.display : 'null'
     });
     
     // Update URL
@@ -245,7 +259,14 @@ socket.on('users:list', (usersList) => {
   // Store users globally
   users = usersList || [];
   
+  // Save the favorites element before clearing
+  const favoritesElement = chatsList.querySelector('.favorites-chat-item');
   chatsList.innerHTML = '';
+  
+  // Restore the favorites element
+  if (favoritesElement) {
+    chatsList.appendChild(favoritesElement);
+  }
   
   if (!usersList || !Array.isArray(usersList)) {
     console.warn('Invalid users array received');
