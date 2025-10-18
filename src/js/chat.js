@@ -64,6 +64,9 @@ function displayMessage(message) {
   if (message.type === 'voice') {
     const duration = window.Core.formatDuration(message.duration);
     
+    // Use audioData (base64) instead of audioUrl (blob)
+    const audioSource = message.audioData || message.audioUrl;
+    
     messageEl.innerHTML = `
       <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
       <div class="message-content">
@@ -82,7 +85,7 @@ function displayMessage(message) {
               ${generateWaveform()}
             </div>
           </div>
-          <button class="voice-message-play-btn" onclick="playVoiceMessage('${message.id}', '${message.audioUrl}')">
+          <button class="voice-message-play-btn" onclick="playVoiceMessage('${message.id}', '${audioSource}')">
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
             </svg>

@@ -429,9 +429,63 @@ let voiceCancelBtn = document.getElementById('voice-cancel-btn');
 let voiceStopBtn = document.getElementById('voice-stop-btn');
 let voiceSendBtn = document.getElementById('voice-send-btn');
 
+// Helper function to convert blob to base64
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Voice message cleanup configuration
+const VOICE_MESSAGE_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+
+// Clean up old voice messages
+function cleanupOldVoiceMessages() {
+  const currentTime = Date.now();
+  const allKeys = Object.keys(localStorage);
+  
+  allKeys.forEach(key => {
+    if (key.startsWith('messages_')) {
+      try {
+        const messages = JSON.parse(localStorage.getItem(key) || '[]');
+        const filteredMessages = messages.filter(message => {
+          if (message.type === 'voice') {
+            const messageAge = currentTime - message.timestamp;
+            if (messageAge > VOICE_MESSAGE_TTL) {
+              console.log(`Cleaning up old voice message: ${message.id}`);
+              return false; // Remove old voice message
+            }
+          }
+          return true; // Keep message
+        });
+        
+        // Update localStorage if any messages were removed
+        if (filteredMessages.length !== messages.length) {
+          localStorage.setItem(key, JSON.stringify(filteredMessages));
+        }
+      } catch (error) {
+        console.error('Error cleaning up voice messages:', error);
+      }
+    }
+  });
+}
+
+// Start cleanup timer
+function startVoiceMessageCleanup() {
+  // Clean up immediately on startup
+  cleanupOldVoiceMessages();
+  
+  // Then clean up every hour
+  setInterval(cleanupOldVoiceMessages, 60 * 60 * 1000);
+}
+
 // Initialize voice messages
 function initializeVoiceMessages() {
   setupVoiceRecording();
+  startVoiceMessageCleanup();
 }
 
 // Setup voice recording
@@ -602,7 +656,7 @@ function stopVisualizerAnimation() {
 }
 
 // Send voice message
-function sendVoiceMessage() {
+async function sendVoiceMessage() {
   const audioUrl = voiceSendBtn.dataset.audioUrl;
   const audioBlob = voiceSendBtn.dataset.audioBlob;
   
@@ -611,54 +665,60 @@ function sendVoiceMessage() {
     return;
   }
   
-  // Create voice message
-  const voiceMessage = {
-    id: Date.now().toString(),
-    from: window.Core.currentUser.id,
-    to: window.Core.currentChatUser.id,
-    type: 'voice',
-    audioUrl: audioUrl,
-    duration: Math.floor((Date.now() - recordingStartTime) / 1000),
-    timestamp: Date.now(),
-    read: false
-  };
-  
-  // Save to localStorage for both sender and receiver
-  const senderMessages = JSON.parse(localStorage.getItem(`messages_${window.Core.currentChatUser.id}`) || '[]');
-  senderMessages.push(voiceMessage);
-  localStorage.setItem(`messages_${window.Core.currentChatUser.id}`, JSON.stringify(senderMessages));
-  
-  // Also save to receiver's messages (simulating real-time sync)
-  const receiverMessages = JSON.parse(localStorage.getItem(`messages_${window.Core.currentUser.id}`) || '[]');
-  const receiverMessage = { ...voiceMessage, from: window.Core.currentUser.id, to: window.Core.currentChatUser.id };
-  receiverMessages.push(receiverMessage);
-  localStorage.setItem(`messages_${window.Core.currentUser.id}`, JSON.stringify(receiverMessages));
-  
-  // Send via socket for real-time delivery
-  if (window.Core.socket && window.Core.socket.connected) {
-    window.Core.socket.emit('message:send', {
+  try {
+    // Convert blob to base64
+    const audioBase64 = await blobToBase64(audioBlob);
+    
+    // Create voice message
+    const voiceMessage = {
+      id: Date.now().toString(),
+      from: window.Core.currentUser.id,
       to: window.Core.currentChatUser.id,
-      text: `[Voice Message - ${window.Core.formatDuration(voiceMessage.duration)}]`,
       type: 'voice',
-      audioUrl: audioUrl,
-      duration: voiceMessage.duration
-    });
+      audioData: audioBase64, // Store as base64 instead of blob URL
+      duration: Math.floor((Date.now() - recordingStartTime) / 1000),
+      timestamp: Date.now(),
+      read: false
+    };
+    
+    // Only save locally for the current chat (remove duplication)
+    const messages = JSON.parse(localStorage.getItem(`messages_${window.Core.currentChatUser.id}`) || '[]');
+    messages.push(voiceMessage);
+    localStorage.setItem(`messages_${window.Core.currentChatUser.id}`, JSON.stringify(messages));
+    
+    // Send via socket for real-time delivery
+    if (window.Core.socket && window.Core.socket.connected) {
+      window.Core.socket.emit('message:send', {
+        to: window.Core.currentChatUser.id,
+        text: `[Voice Message - ${window.Core.formatDuration(voiceMessage.duration)}]`,
+        type: 'voice',
+        audioData: audioBase64,
+        duration: voiceMessage.duration
+      });
+    }
+    
+    // Display voice message
+    displayVoiceMessage(voiceMessage);
+    
+    // Clean up blob URL
+    URL.revokeObjectURL(audioUrl);
+    
+    // Hide recording panel
+    voiceRecordingPanel.style.display = 'none';
+    document.getElementById('message-input').style.display = 'block';
+    
+    // Reset UI
+    voiceStopBtn.style.display = 'flex';
+    voiceSendBtn.style.display = 'none';
+    voiceRecordingStatus.textContent = 'Recording...';
+    voiceRecordingTime.textContent = '00:00';
+    
+    window.Core.showNotification('Voice message sent', 'success');
+    
+  } catch (error) {
+    console.error('Error sending voice message:', error);
+    window.Core.showNotification('Failed to send voice message', 'error');
   }
-  
-  // Display voice message
-  displayVoiceMessage(voiceMessage);
-  
-  // Hide recording panel
-  voiceRecordingPanel.style.display = 'none';
-  document.getElementById('message-input').style.display = 'block';
-  
-  // Reset UI
-  voiceStopBtn.style.display = 'flex';
-  voiceSendBtn.style.display = 'none';
-  voiceRecordingStatus.textContent = 'Recording...';
-  voiceRecordingTime.textContent = '00:00';
-  
-  window.Core.showNotification('Voice message sent', 'success');
 }
 
 // Display voice message
@@ -674,6 +734,9 @@ function displayVoiceMessage(message) {
 
   const senderName = isSent ? window.Core.currentUser.name : window.Core.currentChatUser.name;
   const duration = window.Core.formatDuration(message.duration);
+  
+  // Use audioData (base64) instead of audioUrl (blob)
+  const audioSource = message.audioData || message.audioUrl;
 
   messageEl.innerHTML = `
     <div class="message-avatar">${senderName.charAt(0).toUpperCase()}</div>
@@ -693,7 +756,7 @@ function displayVoiceMessage(message) {
             ${generateWaveform()}
           </div>
         </div>
-        <button class="voice-message-play-btn" onclick="playVoiceMessage('${message.id}', '${message.audioUrl}')">
+        <button class="voice-message-play-btn" onclick="playVoiceMessage('${message.id}', '${audioSource}')">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
           </svg>

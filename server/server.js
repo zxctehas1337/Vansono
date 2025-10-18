@@ -372,7 +372,7 @@ io.on('connection', (socket) => {
 
   // Отправка сообщения
   socket.on('message:send', async (data) => {
-    const { to, text, isCallHistory, replyTo, type, audioUrl, duration } = data;
+    const { to, text, isCallHistory, replyTo, type, audioUrl, audioData, duration } = data;
     const fromUserId = onlineUsers.get(socket.id);
 
     if (!fromUserId) return;
@@ -392,15 +392,17 @@ io.on('connection', (socket) => {
       replyTo: replyTo || null,
       type: type || 'text',
       audioUrl: audioUrl || null,
+      audioData: audioData || null,
       duration: duration || null,
       chatId // Add chatId to the message object
     };
 
-    // Save to database
+    // Save to database - use audioData (base64) instead of audioUrl for voice messages
     try {
+      const audioFieldValue = type === 'voice' ? audioData : audioUrl;
       await pool.query(
         'INSERT INTO messages (id, content, user_id, chat_id, message_type, audio_url, duration) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-        [message.id, message.text, fromUserId, chatId, message.type, message.audioUrl, message.duration]
+        [message.id, message.text, fromUserId, chatId, message.type, audioFieldValue, message.duration]
       );
     } catch (error) {
       console.error('Error saving message to database:', error);
@@ -523,19 +525,27 @@ io.on('connection', (socket) => {
           // Determine the 'to' field based on who sent the message
           const to = row.user_id === currentUserId ? userId : currentUserId;
           
-          return {
+          const message = {
             id: row.id,
             from: row.user_id,
             to: to,
             text: row.content,
             timestamp: new Date(row.created_at).getTime(),
             type: row.message_type || 'text',
-            audioUrl: row.audio_url,
             duration: row.duration,
             edited: false,
             deleted: false,
             chatId: row.chat_id
           };
+          
+          // For voice messages, use audioData field instead of audioUrl
+          if (row.message_type === 'voice') {
+            message.audioData = row.audio_url; // Base64 data stored in audio_url field
+          } else {
+            message.audioUrl = row.audio_url;
+          }
+          
+          return message;
         });
         socket.emit('messages:history', chatMessages);
         return;
