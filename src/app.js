@@ -416,14 +416,14 @@ function createCallHistoryMessage(callType, status, duration = null) {
       const minutes = Math.floor(duration / 60);
       const seconds = Math.floor(duration % 60);
       const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-      messageText = `📞 ${callType} call accepted - Duration: ${durationText}`;
+      messageText = ` ${callType} Сall accepted - Duration: ${durationText}`;
     } else {
-      messageText = `📞 ${callType} call accepted`;
+      messageText = ` ${callType} Сall accepted`;
     }
   } else if (status === 'rejected') {
-    messageText = `📞 ${callType} call rejected`;
+    messageText = ` ${callType} Сall rejected`;
   } else if (status === 'missed') {
-    messageText = `📞 Missed ${callType} call`;
+    messageText = ` Missed ${callType} Сall`;
   }
   
   return {
@@ -864,7 +864,7 @@ const themes = {
 };
 
 // Add this after your other DOM element selections
-const settingsBtn = document.getElementById('settings-btn');
+// const settingsBtn = document.getElementById('settings-btn'); // Removed - now handled in menu system
 
 // Theme switching function
 function switchTheme() {
@@ -892,5 +892,382 @@ document.addEventListener('DOMContentLoaded', () => {
   applyTheme(savedTheme);
 });
 
+// ===== MENU SYSTEM =====
+
+// Menu elements
+const menuBtn = document.getElementById('menu-btn');
+const menuOverlay = document.getElementById('menu-overlay');
+const closeMenuBtn = document.getElementById('close-menu-btn');
+const favoritesBtn = document.getElementById('favorites-btn');
+const profileBtn = document.getElementById('profile-btn');
+const settingsBtn = document.getElementById('settings-btn');
+const exitBtn = document.getElementById('exit-btn');
+
+// Screen elements
+const profileScreen = document.getElementById('profile-screen');
+const settingsScreen = document.getElementById('settings-screen');
+const favoritesChat = document.getElementById('favorites-chat');
+
+// Back buttons
+const backFromProfile = document.getElementById('back-from-profile');
+const backFromSettings = document.getElementById('back-from-settings');
+const backFromFavorites = document.getElementById('back-from-favorites');
+
+// Profile elements
+const profileAvatar = document.getElementById('profile-avatar');
+const profileName = document.getElementById('profile-name');
+const profileUsername = document.getElementById('profile-username');
+const avatarLetter = document.getElementById('avatar-letter');
+const colorOptions = document.querySelectorAll('.color-option');
+const saveProfileBtn = document.getElementById('save-profile-btn');
+
+// Settings elements
+const themeSelect = document.getElementById('theme-select');
+const messageSizeSelect = document.getElementById('message-size-select');
+
+// Favorites elements
+const favoritesMessages = document.getElementById('favorites-messages');
+const favoritesInput = document.getElementById('favorites-input');
+const favoritesSendBtn = document.getElementById('favorites-send-btn');
+
+// Menu functionality
+menuBtn.addEventListener('click', () => {
+  menuOverlay.classList.add('active');
+});
+
+closeMenuBtn.addEventListener('click', () => {
+  menuOverlay.classList.remove('active');
+});
+
+// Close menu when clicking outside
+menuOverlay.addEventListener('click', (e) => {
+  if (e.target === menuOverlay) {
+    menuOverlay.classList.remove('active');
+  }
+});
+
+// Menu item handlers
+favoritesBtn.addEventListener('click', () => {
+  menuOverlay.classList.remove('active');
+  showFavorites();
+});
+
+profileBtn.addEventListener('click', () => {
+  menuOverlay.classList.remove('active');
+  showProfile();
+});
+
+settingsBtn.addEventListener('click', () => {
+  menuOverlay.classList.remove('active');
+  showSettings();
+});
+
+exitBtn.addEventListener('click', () => {
+  menuOverlay.classList.remove('active');
+  logout();
+});
+
+// Back button handlers
+backFromProfile.addEventListener('click', () => {
+  profileScreen.classList.remove('active');
+  chatScreen.classList.add('active');
+});
+
+backFromSettings.addEventListener('click', () => {
+  settingsScreen.classList.remove('active');
+  chatScreen.classList.add('active');
+});
+
+backFromFavorites.addEventListener('click', () => {
+  favoritesChat.style.display = 'none';
+  chatScreen.classList.add('active');
+});
+
+// ===== FAVORITES FUNCTIONALITY =====
+
+function showFavorites() {
+  chatScreen.classList.remove('active');
+  favoritesChat.style.display = 'flex';
+  loadFavoritesMessages();
+}
+
+function loadFavoritesMessages() {
+  const savedMessages = JSON.parse(localStorage.getItem('favoritesMessages') || '[]');
+  favoritesMessages.innerHTML = '';
+  
+  if (savedMessages.length === 0) {
+    favoritesMessages.innerHTML = `
+      <div class="favorites-welcome">
+        <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+          <path d="M40 4L48 16L62 18L52 28L56 42L40 36L24 42L28 28L18 18L32 16L40 4Z" stroke="url(#gradient3)" stroke-width="2" stroke-linejoin="round"/>
+          <defs>
+            <linearGradient id="gradient3" x1="0" y1="0" x2="80" y2="80">
+              <stop offset="0%" stop-color="#667eea"/>
+              <stop offset="100%" stop-color="#764ba2"/>
+            </linearGradient>
+          </defs>
+        </svg>
+        <h3>Welcome to Favorites!</h3>
+        <p>This is your personal space to save important messages, notes, and thoughts.</p>
+      </div>
+    `;
+  } else {
+    savedMessages.forEach(message => {
+      displayFavoritesMessage(message);
+    });
+  }
+}
+
+function displayFavoritesMessage(message) {
+  const messageEl = document.createElement('div');
+  messageEl.className = 'favorites-message';
+  
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  messageEl.innerHTML = `
+    <div class="favorites-message-content">
+      <div class="favorites-message-bubble">${escapeHtml(message.text)}</div>
+      <div class="favorites-message-meta">
+        <div class="favorites-message-time">${time}</div>
+      </div>
+    </div>
+  `;
+
+  favoritesMessages.appendChild(messageEl);
+}
+
+function saveFavoritesMessage(text) {
+  const message = {
+    id: Date.now(),
+    text: text,
+    timestamp: Date.now()
+  };
+  
+  const savedMessages = JSON.parse(localStorage.getItem('favoritesMessages') || '[]');
+  savedMessages.push(message);
+  localStorage.setItem('favoritesMessages', JSON.stringify(savedMessages));
+  
+  displayFavoritesMessage(message);
+  favoritesMessages.scrollTop = favoritesMessages.scrollHeight;
+}
+
+// Favorites input handling
+favoritesSendBtn.addEventListener('click', () => {
+  const text = favoritesInput.value.trim();
+  if (text) {
+    saveFavoritesMessage(text);
+    favoritesInput.value = '';
+  }
+});
+
+favoritesInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') {
+    const text = favoritesInput.value.trim();
+    if (text) {
+      saveFavoritesMessage(text);
+      favoritesInput.value = '';
+    }
+  }
+});
+
+// ===== PROFILE FUNCTIONALITY =====
+
+function showProfile() {
+  chatScreen.classList.remove('active');
+  profileScreen.classList.add('active');
+  
+  // Load current user data
+  if (currentUser) {
+    profileName.value = currentUser.name;
+    profileUsername.value = currentUser.username;
+    profileAvatar.textContent = currentUser.name.charAt(0).toUpperCase();
+    avatarLetter.value = currentUser.name.charAt(0).toUpperCase();
+  }
+}
+
+// Avatar customization
+colorOptions.forEach(option => {
+  option.addEventListener('click', () => {
+    colorOptions.forEach(opt => opt.classList.remove('selected'));
+    option.classList.add('selected');
+    
+    const color = option.dataset.color;
+    profileAvatar.style.background = color;
+    // Update main avatar too
+    currentUserAvatar.style.background = color;
+  });
+});
+
+avatarLetter.addEventListener('input', (e) => {
+  const letter = e.target.value.toUpperCase();
+  profileAvatar.textContent = letter;
+  currentUserAvatar.textContent = letter;
+});
+
+saveProfileBtn.addEventListener('click', () => {
+  const newName = profileName.value.trim();
+  const newUsername = profileUsername.value.trim();
+  
+  if (!newName || !newUsername) {
+    alert('Please fill in all fields');
+    return;
+  }
+  
+  // Update current user
+  if (currentUser) {
+    currentUser.name = newName;
+    currentUser.username = newUsername;
+    
+    // Update display
+    updateUserDisplay(currentUser);
+    
+    // Save to localStorage
+    localStorage.setItem('userData', JSON.stringify(currentUser));
+    
+    alert('Profile updated successfully!');
+  }
+});
+
+// ===== SETTINGS FUNCTIONALITY =====
+
+function showSettings() {
+  chatScreen.classList.remove('active');
+  settingsScreen.classList.add('active');
+  
+  // Load current settings
+  const currentTheme = localStorage.getItem('theme') || 'dark';
+  const currentMessageSize = localStorage.getItem('messageSize') || 'medium';
+  
+  themeSelect.value = currentTheme;
+  messageSizeSelect.value = currentMessageSize;
+}
+
+// Theme selection
+themeSelect.addEventListener('change', (e) => {
+  const theme = e.target.value;
+  applyTheme(theme);
+  localStorage.setItem('theme', theme);
+});
+
+// Message size selection
+messageSizeSelect.addEventListener('change', (e) => {
+  const size = e.target.value;
+  applyMessageSize(size);
+  localStorage.setItem('messageSize', size);
+});
+
+function applyMessageSize(size) {
+  const messagesContainer = document.getElementById('messages-container');
+  const messageBubbles = document.querySelectorAll('.message-bubble');
+  
+  // Remove existing size classes
+  messagesContainer.classList.remove('message-size-small', 'message-size-medium', 'message-size-large');
+  
+  // Add new size class
+  messagesContainer.classList.add(`message-size-${size}`);
+  
+  // Apply size to message bubbles
+  messageBubbles.forEach(bubble => {
+    bubble.classList.remove('message-size-small', 'message-size-medium', 'message-size-large');
+    bubble.classList.add(`message-size-${size}`);
+  });
+}
+
+// ===== LOGOUT FUNCTIONALITY =====
+
+function logout() {
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('userData');
+  localStorage.removeItem('favoritesMessages');
+  
+  // Reset state
+  currentUser = null;
+  currentChatUser = null;
+  
+  // Show auth screen
+  chatScreen.classList.remove('active');
+  authScreen.classList.add('active');
+  
+  // Reset forms
+  document.getElementById('register-form').classList.add('active');
+  document.getElementById('login-form').classList.remove('active');
+  
+  // Clear form fields
+  document.getElementById('reg-name').value = '';
+  document.getElementById('reg-username').value = '';
+  document.getElementById('reg-password').value = '';
+  document.getElementById('reg-captcha').value = '';
+  document.getElementById('login-username').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-captcha').value = '';
+  
+  requestCaptcha(false);
+}
+
+// ===== ENHANCED THEMES =====
+
+// Update themes object with new themes
+const enhancedThemes = {
+  ...themes,
+  blue: {
+    '--bg-primary': '#0f172a',
+    '--bg-secondary': '#1e293b',
+    '--bg-tertiary': '#334155',
+    '--text-primary': '#f1f5f9',
+    '--text-secondary': '#94a3b8',
+    '--text-tertiary': '#64748b',
+    '--accent-primary': '#3b82f6',
+    '--accent-secondary': '#1d4ed8',
+    '--border-color': '#334155',
+    '--success': '#10B981',
+    '--error': '#EF4444'
+  },
+  purple: {
+    '--bg-primary': '#1e1b2e',
+    '--bg-secondary': '#2d1b69',
+    '--bg-tertiary': '#3d2a8a',
+    '--text-primary': '#f3e8ff',
+    '--text-secondary': '#c4b5fd',
+    '--text-tertiary': '#a78bfa',
+    '--accent-primary': '#8b5cf6',
+    '--accent-secondary': '#7c3aed',
+    '--border-color': '#3d2a8a',
+    '--success': '#10B981',
+    '--error': '#EF4444'
+  },
+  green: {
+    '--bg-primary': '#0f1b0f',
+    '--bg-secondary': '#1a2e1a',
+    '--bg-tertiary': '#2d4a2d',
+    '--text-primary': '#f0fff0',
+    '--text-secondary': '#a7f3d0',
+    '--text-tertiary': '#6ee7b7',
+    '--accent-primary': '#10b981',
+    '--accent-secondary': '#059669',
+    '--border-color': '#2d4a2d',
+    '--success': '#10B981',
+    '--error': '#EF4444'
+  }
+};
+
+// Update applyTheme function to use enhanced themes
+function applyTheme(themeName) {
+  const theme = enhancedThemes[themeName];
+  if (theme) {
+    Object.entries(theme).forEach(([property, value]) => {
+      document.documentElement.style.setProperty(property, value);
+    });
+  }
+}
+
+// Initialize message size on load
+document.addEventListener('DOMContentLoaded', () => {
+  const savedMessageSize = localStorage.getItem('messageSize') || 'medium';
+  applyMessageSize(savedMessageSize);
+});
+
 // Add this to your initialization code
-settingsBtn.addEventListener('click', switchTheme);
+// settingsBtn.addEventListener('click', switchTheme); // Remove this line since we now have menu system

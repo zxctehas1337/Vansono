@@ -274,7 +274,7 @@ io.on('connection', (socket) => {
       io.to(recipientSocket[0]).emit('call:incoming', {
         from: fromUserId,
         signal,
-        callType: callType || 'voice',
+        callType: callType || 'Voice call',
         caller: users.get(fromUserId)
       });
     }
