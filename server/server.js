@@ -8,6 +8,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -36,8 +38,15 @@ const pinnedMessages = new Map(); // chatId -> [messageId1, messageId2, ...]
 // Initialize database tables
 async function initializeDatabase() {
   try {
+    // Drop existing tables with foreign key constraints first (in reverse dependency order)
+    await pool.query('DROP TABLE IF EXISTS chat_participants CASCADE');
+    await pool.query('DROP TABLE IF EXISTS messages CASCADE');
+    await pool.query('DROP TABLE IF EXISTS chats CASCADE');
+    await pool.query('DROP TABLE IF EXISTS users CASCADE');
+    
+    // Create tables with consistent schema
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS users (
+      CREATE TABLE users (
         id VARCHAR(255) PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         username VARCHAR(255) NOT NULL UNIQUE,
@@ -47,7 +56,18 @@ async function initializeDatabase() {
     `);
     
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS messages (
+      CREATE TABLE chats (
+        id VARCHAR(255) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        chat_type VARCHAR(50) DEFAULT 'private',
+        created_by VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE messages (
         id VARCHAR(255) PRIMARY KEY,
         content TEXT NOT NULL,
         user_id VARCHAR(255) NOT NULL,
@@ -56,29 +76,19 @@ async function initializeDatabase() {
         audio_url TEXT,
         duration INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
       )
     `);
     
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS chats (
-        id VARCHAR(255) PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        chat_type VARCHAR(50) DEFAULT 'private',
-        created_by VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (created_by) REFERENCES users(id)
-      )
-    `);
-    
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS chat_participants (
+      CREATE TABLE chat_participants (
         id SERIAL PRIMARY KEY,
         chat_id VARCHAR(255) NOT NULL,
         user_id VARCHAR(255) NOT NULL,
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (chat_id) REFERENCES chats(id),
-        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(chat_id, user_id)
       )
     `);
@@ -205,8 +215,6 @@ io.on('connection', (socket) => {
 });
 
   // Логин с паролем и капчей
-  const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
-  
   // After successful login, generate and send token
   socket.on('login', async (data) => {
     const { username, password, captchaAnswer } = data || {};
