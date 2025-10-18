@@ -985,6 +985,16 @@ io.on('connection', (socket) => {
   });
 });
 
+// Middleware to prevent caching issues
+app.use((req, res, next) => {
+  if (req.url.endsWith('.css') || req.url.endsWith('.js') || req.url.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+  }
+  next();
+});
+
 // Обработка статических файлов и SPA
 // API endpoints for OAuth callbacks
 app.use(express.json());
@@ -1103,8 +1113,22 @@ app.get('/oauth/yandex/callback', (req, res) => {
   res.status(400).send('Invalid OAuth callback');
 });
 
-// Serve static files
-app.use(express.static(path.resolve(__dirname, '../src')));
+// Serve static files with proper MIME types and caching
+app.use(express.static(path.resolve(__dirname, '../src'), {
+  maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.css')) {
+      res.setHeader('Content-Type', 'text/css; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.endsWith('.js')) {
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+    } else if (filePath.endsWith('.html')) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
 app.use((_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));
 
 const PORT = process.env.PORT || 3000;
