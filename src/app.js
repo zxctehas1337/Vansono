@@ -15,6 +15,14 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Core module initializeCore function not found');
     }
     
+    // Router module (after core)
+    if (window.Router && window.Router.initializeRouter) {
+      window.Router.initializeRouter();
+      console.log('Router module initialized');
+    } else {
+      console.warn('Router module initializeRouter function not found');
+    }
+    
     // Auth module
     if (window.Auth && window.Auth.initializeAuth) {
       window.Auth.initializeAuth();

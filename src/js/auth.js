@@ -125,18 +125,23 @@ function registerAuthHandlers() {
       }
       window.Core.currentUser = data.user;
       
-      // Switch screens manually
-      const authScreen = document.getElementById('auth-screen');
-      const chatScreen = document.getElementById('chat-screen');
-      
-      if (authScreen) {
-        authScreen.classList.remove('active');
-        authScreen.style.display = 'none';
-      }
-      
-      if (chatScreen) {
-        chatScreen.classList.add('active');
-        chatScreen.style.display = 'flex';
+      // Use router for screen switching
+      if (window.Router) {
+        window.Router.setAuthenticated(true);
+      } else {
+        // Fallback for manual screen switching
+        const authScreen = document.getElementById('auth-screen');
+        const chatScreen = document.getElementById('chat-screen');
+        
+        if (authScreen) {
+          authScreen.classList.remove('active');
+          authScreen.style.display = 'none';
+        }
+        
+        if (chatScreen) {
+          chatScreen.classList.add('active');
+          chatScreen.style.display = 'flex';
+        }
       }
       
       window.Core.updateUserDisplay(data.user);
@@ -147,18 +152,23 @@ function registerAuthHandlers() {
       window.Core.currentUser = data.user;
       localStorage.setItem('userData', JSON.stringify(data.user));
       
-      // Switch screens manually
-      const authScreen = document.getElementById('auth-screen');
-      const chatScreen = document.getElementById('chat-screen');
-      
-      if (authScreen) {
-        authScreen.classList.remove('active');
-        authScreen.style.display = 'none';
-      }
-      
-      if (chatScreen) {
-        chatScreen.classList.add('active');
-        chatScreen.style.display = 'flex';
+      // Use router for screen switching
+      if (window.Router) {
+        window.Router.setAuthenticated(true);
+      } else {
+        // Fallback for manual screen switching
+        const authScreen = document.getElementById('auth-screen');
+        const chatScreen = document.getElementById('chat-screen');
+        
+        if (authScreen) {
+          authScreen.classList.remove('active');
+          authScreen.style.display = 'none';
+        }
+        
+        if (chatScreen) {
+          chatScreen.classList.add('active');
+          chatScreen.style.display = 'flex';
+        }
       }
       
       window.Core.updateUserDisplay(data.user);
@@ -172,8 +182,15 @@ function registerAuthHandlers() {
     socket.on('auth:error', () => {
       localStorage.removeItem('authToken');
       localStorage.removeItem('userData');
-      document.getElementById('auth-screen').classList.add('active');
-      document.getElementById('chat-screen').classList.remove('active');
+      
+      // Use router for screen switching
+      if (window.Router) {
+        window.Router.setAuthenticated(false);
+      } else {
+        // Fallback for manual screen switching
+        document.getElementById('auth-screen').classList.add('active');
+        document.getElementById('chat-screen').classList.remove('active');
+      }
       requestCaptcha(false);
     });
 
@@ -233,18 +250,28 @@ function logout() {
   window.Core.currentUser = null;
   window.Core.currentChatUser = null;
   
-  // Show auth screen
-  document.getElementById('chat-screen').classList.remove('active');
-  document.getElementById('auth-screen').classList.add('active');
+  // Use router for screen switching
+  if (window.Router) {
+    window.Router.setAuthenticated(false);
+  } else {
+    // Fallback for manual screen switching
+    document.getElementById('chat-screen').classList.remove('active');
+    document.getElementById('auth-screen').classList.add('active');
+  }
   
   // Reset forms
-  document.getElementById('register-form').classList.add('active');
-  document.getElementById('login-form').classList.remove('active');
+  const registerForm = document.getElementById('register-form');
+  const loginForm = document.getElementById('login-form');
+  if (registerForm) registerForm.classList.add('active');
+  if (loginForm) loginForm.classList.remove('active');
   
   // Clear form fields
-  document.getElementById('login-username').value = '';
-  document.getElementById('login-password').value = '';
-  document.getElementById('login-captcha').value = '';
+  const loginUsername = document.getElementById('login-username');
+  const loginPassword = document.getElementById('login-password');
+  const loginCaptcha = document.getElementById('login-captcha');
+  if (loginUsername) loginUsername.value = '';
+  if (loginPassword) loginPassword.value = '';
+  if (loginCaptcha) loginCaptcha.value = '';
   
   requestCaptcha(false);
 }

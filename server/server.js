@@ -1034,15 +1034,6 @@ app.post('/api/yandex/user', async (req, res) => {
   }
 });
 
-// API routes for chat navigation
-app.get('/chats', (req, res) => {
-  res.sendFile(path.resolve(__dirname, '../src/index.html'));
-});
-
-app.get('/chat/:userId', (req, res) => {
-  res.sendFile(path.resolve(__dirname, '../src/index.html'));
-});
-
 // OAuth callback handler for Yandex
 app.get('/oauth/yandex/callback', (req, res) => {
   const { code, error } = req.query;
@@ -1070,7 +1061,7 @@ app.get('/oauth/yandex/callback', (req, res) => {
           },
           body: JSON.stringify({
             code: '${code}',
-            redirect_uri: '${req.protocol}://${req.get('host')}/chats'
+            redirect_uri: '${req.protocol}://${req.get('host')}/oauth/yandex/callback'
           })
         })
         .then(response => response.json())
@@ -1114,6 +1105,15 @@ app.get('/oauth/yandex/callback', (req, res) => {
   res.status(400).send('Invalid OAuth callback');
 });
 
+// SPA routes MUST come before static files
+app.get('/chats', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../src/index.html'));
+});
+
+app.get('/chat/:userId', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../src/index.html'));
+});
+
 // Serve static files with proper MIME types and caching
 app.use(express.static(path.resolve(__dirname, '../src'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0',
@@ -1130,7 +1130,17 @@ app.use(express.static(path.resolve(__dirname, '../src'), {
     }
   }
 }));
-app.use((_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));
+
+// SPA fallback middleware - must be last
+app.use((req, res, next) => {
+  // Only handle GET requests that don't start with /api
+  if (req.method === 'GET' && !req.path.startsWith('/api')) {
+    console.log('Serving index.html for SPA route:', req.path);
+    res.sendFile(path.resolve(__dirname, '../src/index.html'));
+  } else {
+    next();
+  }
+});
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

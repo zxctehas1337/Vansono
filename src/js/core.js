@@ -40,30 +40,12 @@ const chatStatus = document.getElementById('chat-status');
 
 // ===== UTILITY FUNCTIONS =====
 
-// Handle URL routing
+// Handle URL routing (deprecated - now handled by Router module)
 function handleRouting() {
-  const path = window.location.pathname;
-  console.log('handleRouting called with path:', path);
-  
-  if (path === '/chats' || path === '/') {
-    // Show chats list
-    console.log('Routing to chats list');
-    showChatsList();
-  } else if (path.startsWith('/chat/')) {
-    const userId = path.split('/chat/')[1];
-    console.log('Routing to chat with userId:', userId);
-    if (userId && currentUser) {
-      // Find user and open chat
-      const user = users.find(u => u.id === userId);
-      if (user) {
-        openChat(user);
-      } else {
-        // User not found, redirect to chats
-        console.log('User not found, redirecting to chats');
-        window.history.pushState({}, '', '/chats');
-        showChatsList();
-      }
-    }
+  console.log('Legacy handleRouting called - should use Router module instead');
+  // Delegate to Router module if available
+  if (window.Router && window.Router.handleRoute) {
+    window.Router.handleRoute(window.location.pathname);
   }
 }
 
@@ -104,8 +86,12 @@ function showChatsList() {
     console.log('Chat screen not active, skipping DOM manipulation');
   }
   
-  // Update URL
-  window.history.pushState({}, '', '/chats');
+  // Update URL using Router
+  if (window.Router && window.Router.navigateTo) {
+    window.Router.navigateTo('/chats', true);
+  } else {
+    window.history.pushState({}, '', '/chats');
+  }
   
   // Clear current chat user
   currentChatUser = null;
@@ -507,8 +493,12 @@ function openChat(user) {
   chatStatus.textContent = user.online ? 'Online' : 'Offline';
   chatStatus.style.color = user.online ? 'var(--success)' : 'var(--text-tertiary)';
 
-  // Update URL
-  window.history.pushState({}, '', `/chat/${user.id}`);
+  // Update URL using Router
+  if (window.Router && window.Router.navigateTo) {
+    window.Router.navigateTo(`/chat/${user.id}`, true);
+  } else {
+    window.history.pushState({}, '', `/chat/${user.id}`);
+  }
 
   // Load messages
   messagesContainer.innerHTML = '';
@@ -551,11 +541,8 @@ function initializeCore() {
     }, 300));
   }
 
-  // Setup routing
-  handleRouting();
-  
-  // Handle browser back/forward buttons
-  window.addEventListener('popstate', handleRouting);
+  // Router module handles URL routing now
+  console.log('Core: Router module should handle URL routing');
   
   // Setup back button in chat
   const backBtn = document.getElementById('back-btn');
