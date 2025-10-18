@@ -25,7 +25,7 @@ let isCameraOn = true;
 
 // ===== CALL HISTORY FUNCTIONS =====
 
-function createCallHistoryMessage(callType, status, duration = null) {
+function createCallHistoryMessage(callType, status, duration = null, isInitiator = false) {
   const timestamp = Date.now();
   let messageText = '';
   
@@ -34,20 +34,20 @@ function createCallHistoryMessage(callType, status, duration = null) {
       const minutes = Math.floor(duration / 60);
       const seconds = Math.floor(duration % 60);
       const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-      messageText = ` ${callType} Сall accepted - Duration: ${durationText}`;
+      messageText = `${callType} call accepted - Duration: ${durationText}`;
     } else {
-      messageText = ` ${callType} Сall accepted`;
+      messageText = `${callType} call accepted`;
     }
   } else if (status === 'rejected') {
-    messageText = ` ${callType} Сall rejected`;
+    messageText = `${callType} call rejected`;
   } else if (status === 'missed') {
-    messageText = ` Missed ${callType} Сall`;
+    messageText = `Missed ${callType} call`;
   }
   
   return {
     id: `call_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
-    from: window.Core.currentUser.id,
-    to: window.Core.currentChatUser.id,
+    from: isInitiator ? window.Core.currentUser.id : window.Core.currentChatUser.id,
+    to: isInitiator ? window.Core.currentChatUser.id : window.Core.currentUser.id,
     text: messageText,
     timestamp: timestamp,
     isCallHistory: true
@@ -58,6 +58,9 @@ function createCallHistoryMessage(callType, status, duration = null) {
 
 async function initiateCall(video) {
   try {
+    // Reset call history flag for new call
+    window.Core.callHistoryAdded = false;
+    
     // Check if SimplePeer is available
     if (typeof SimplePeer === 'undefined') {
       console.error('SimplePeer library not loaded');
@@ -106,8 +109,14 @@ async function initiateCall(video) {
 // ===== INCOMING CALL HANDLING =====
 
 window.Core.socket.on('call:incoming', (data) => {
+  // Play ringtone for incoming call
+  playNotificationSound('rington');
+  
   showIncomingCall(data.caller.name, data.callType);
   window.Core.currentCallData = data;
+  
+  // Reset call history flag for new incoming call
+  window.Core.callHistoryAdded = false;
 });
 
 function showIncomingCall(callerName, callType) {
@@ -249,13 +258,21 @@ window.Core.socket.on('call:ended', () => {
 });
 
 function endCall() {
-  // Calculate call duration if call was active
-  if (window.Core.callStartTime && window.Core.currentCallData) {
+  // Calculate call duration if call was active and avoid duplicate messages
+  if (window.Core.callStartTime && window.Core.currentCallData && !window.Core.callHistoryAdded) {
     window.Core.callEndTime = Date.now();
     window.Core.callDuration = Math.floor((window.Core.callEndTime - window.Core.callStartTime) / 1000);
     
+    // Determine if current user initiated the call
+    const isInitiator = !window.Core.currentCallData.from || window.Core.currentCallData.from === window.Core.currentUser.id;
+    
     // Create call history message for ended call
-    const callHistoryMessage = createCallHistoryMessage(window.Core.currentCallData.callType, 'accepted', window.Core.callDuration);
+    const callHistoryMessage = createCallHistoryMessage(
+      window.Core.currentCallData.callType || 'voice', 
+      'accepted', 
+      window.Core.callDuration,
+      isInitiator
+    );
     window.Chat.displayMessage(callHistoryMessage);
     window.Core.scrollToBottom();
     
@@ -265,6 +282,9 @@ function endCall() {
       text: callHistoryMessage.text,
       isCallHistory: true
     });
+    
+    // Mark that call history has been added to prevent duplication
+    window.Core.callHistoryAdded = true;
   }
   
   if (window.Core.peer) {
@@ -293,6 +313,7 @@ function endCall() {
   window.Core.callStartTime = null;
   window.Core.callEndTime = null;
   window.Core.callDuration = null;
+  window.Core.callHistoryAdded = false;
 
   document.getElementById('call-screen').classList.remove('active');
   document.getElementById('chat-screen').classList.add('active');
@@ -359,6 +380,21 @@ function animateAudioVisualization() {
   return;
 }
 
+// ===== AUDIO NOTIFICATIONS =====
+
+// Play notification sound
+function playNotificationSound(type) {
+  try {
+    const audio = new Audio(`src/${type}.mp3`);
+    audio.volume = 0.5;
+    audio.play().catch(error => {
+      console.warn('Could not play notification sound:', error);
+    });
+  } catch (error) {
+    console.warn('Error creating audio notification:', error);
+  }
+}
+
 // ===== INITIALIZATION =====
 
 function initializeCall() {
@@ -372,6 +408,7 @@ window.Call = {
   endCall,
   showCallScreen,
   createCallHistoryMessage,
+  playNotificationSound,
   initializeCall
 };
 

@@ -432,6 +432,10 @@ let voiceSendBtn = document.getElementById('voice-send-btn');
 // Helper function to convert blob to base64
 function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
+    if (!(blob instanceof Blob)) {
+      reject(new TypeError("Passed object is not a Blob."));
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
@@ -551,10 +555,10 @@ async function startVoiceRecording() {
       if (voiceSendBtn) voiceSendBtn.style.display = 'flex';
       if (voiceRecordingStatus) voiceRecordingStatus.textContent = 'Recording complete';
       
-      // Store audio for sending
+      // Store audio for sending - store the actual blob object, not as dataset
       if (voiceSendBtn) {
-        voiceSendBtn.dataset.audioUrl = audioUrl;
-        voiceSendBtn.dataset.audioBlob = audioBlob;
+        voiceSendBtn.audioUrl = audioUrl;
+        voiceSendBtn.audioBlob = audioBlob;
       }
     };
     
@@ -623,8 +627,6 @@ function cancelVoiceRecording() {
   voiceSendBtn.style.display = 'none';
   voiceRecordingStatus.textContent = 'Recording...';
   voiceRecordingTime.textContent = '00:00';
-  
-  window.Core.showNotification('Voice recording cancelled', 'info');
 }
 
 // Start recording timer
@@ -657,8 +659,8 @@ function stopVisualizerAnimation() {
 
 // Send voice message
 async function sendVoiceMessage() {
-  const audioUrl = voiceSendBtn.dataset.audioUrl;
-  const audioBlob = voiceSendBtn.dataset.audioBlob;
+  const audioUrl = voiceSendBtn.audioUrl;
+  const audioBlob = voiceSendBtn.audioBlob;
   
   if (!audioUrl || !audioBlob) {
     window.Core.showNotification('No voice recording to send', 'error');

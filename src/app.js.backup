@@ -2802,8 +2802,6 @@ function cancelVoiceRecording() {
   voiceSendBtn.style.display = 'none';
   voiceRecordingStatus.textContent = 'Recording...';
   voiceRecordingTime.textContent = '00:00';
-  
-  showNotification('Voice recording cancelled', 'info');
 }
 
 // Start recording timer
@@ -4191,7 +4189,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeSettings();
   requestNotificationPermission();
   
-  // Expose functions to global scope for onclick handlers
   window.editMessage = editMessage;
   window.deleteMessage = deleteMessage;
   window.pinMessage = pinMessage;

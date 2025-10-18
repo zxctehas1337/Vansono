@@ -297,6 +297,11 @@ window.Core.socket.on('message:received', (message) => {
   if (window.Core.currentChatUser && message.from === window.Core.currentChatUser.id) {
     displayMessage(message);
     window.Core.scrollToBottom();
+    
+    // Play notification sound for incoming messages (not from current user)
+    if (message.from !== window.Core.currentUser.id && window.Call && window.Call.playNotificationSound) {
+      window.Call.playNotificationSound('notification');
+    }
   } else {
     // Show desktop notification for messages from other users
     window.Core.showDesktopNotification(
@@ -304,6 +309,11 @@ window.Core.socket.on('message:received', (message) => {
       `${message.from === window.Core.currentUser.id ? 'You' : 'Someone'} sent a message`,
       '/favicon.ico'
     );
+    
+    // Play notification sound for messages from other chats
+    if (message.from !== window.Core.currentUser.id && window.Call && window.Call.playNotificationSound) {
+      window.Call.playNotificationSound('notification');
+    }
   }
 });
 
