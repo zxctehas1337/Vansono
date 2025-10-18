@@ -25,7 +25,7 @@ const messages = []; // История сообщений
 const chats = new Map(); // chatId -> {participants, messages}
 
 io.on('connection', (socket) => {
-  console.log('New client connected:', socket.id);
+  console.log('', socket.id);
 
   // Капча: выдача задачи
   socket.on('captcha:get', () => {
@@ -101,11 +101,11 @@ io.on('connection', (socket) => {
         username: u.username,
         online: Array.from(onlineUsers.values()).includes(u.id)
       }));
-      
-      io.emit('users:list', userList);
-      console.log('Client disconnected:', socket.id);
-    });
+
+    io.emit('users:list', userList);
+    console.log('', socket.id);
   });
+});
 
   // Логин с паролем и капчей
   const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
@@ -327,7 +327,7 @@ io.on('connection', (socket) => {
       online: Array.from(onlineUsers.values()).includes(u.id)
     }));
     io.emit('users:list', userListOnDisconnect);
-    console.log('Client disconnected:', socket.id);
+    console.log('', socket.id);
   });
 });
 
