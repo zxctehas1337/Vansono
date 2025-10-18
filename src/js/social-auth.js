@@ -5,7 +5,7 @@
 const VK_CONFIG = {
   app: 54249385,
   redirectUrl: window.location.origin + '/',
-  responseMode: 'popup', // Изменено с 'callback' на 'popup'
+  responseMode: 'callback', // Возвращаем callback режим для стабильности
   source: 'lowcode',
   scope: ''
 };
@@ -19,7 +19,7 @@ function initializeVKID() {
       VKID.Config.init({
         app: VK_CONFIG.app,
         redirectUrl: VK_CONFIG.redirectUrl,
-        responseMode: VKID.ConfigResponseMode.Popup, // Изменено с Callback на Popup
+        responseMode: VKID.ConfigResponseMode.Callback, // Используем Callback режим
         source: VKID.ConfigSource.LOWCODE,
         scope: VK_CONFIG.scope
       });
@@ -41,17 +41,30 @@ function initializeVKID() {
       })
       .on(VKID.WidgetEvents.ERROR, handleVKIDError)
       .on(VKID.WidgetEvents.LOGIN_SUCCESS, function (payload) {
-        // В popup режиме payload содержит готовые данные
+        console.log('VK ID Login Success Payload:', payload);
+        
+        // Проверяем наличие access_token
         if (payload.access_token) {
           handleVKIDSuccess(payload);
-        } else {
+        } else if (payload.code) {
           // Если есть code, обмениваем его на токен
           const code = payload.code;
           const deviceId = payload.device_id;
-
+          
+          console.log('Exchanging code for token:', { code, deviceId });
+          
           VKID.Auth.exchangeCode(code, deviceId)
-            .then(handleVKIDSuccess)
-            .catch(handleVKIDError);
+            .then((tokenData) => {
+              console.log('Token exchange successful:', tokenData);
+              handleVKIDSuccess(tokenData);
+            })
+            .catch((error) => {
+              console.error('Token exchange failed:', error);
+              handleVKIDError(error);
+            });
+        } else {
+          console.error('No access_token or code in payload:', payload);
+          handleVKIDError({ error: 'invalid_response', error_description: 'No valid authentication data received' });
         }
       });
 
@@ -70,14 +83,32 @@ function initializeVKID() {
 function handleVKIDSuccess(data) {
   console.log('VK ID authentication successful:', data);
   
-  if (data.access_token) {
+  if (data.access_token || data.token) {
+    const accessToken = data.access_token || data.token;
+    
+    // Получаем информацию о пользователе
+    const userInfo = data.user || data.userInfo || {
+      id: data.id || data.user_id,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      screen_name: data.screen_name,
+      photo_200: data.photo_200
+    };
+    
+    console.log('Sending to server:', {
+      provider: 'vk',
+      accessToken: accessToken,
+      userInfo: userInfo
+    });
+    
     // Send token to server for verification and user creation/login
     window.Core.socket.emit('social:auth', {
       provider: 'vk',
-      accessToken: data.access_token,
-      userInfo: data.user || data // В popup режиме данные могут быть в корне объекта
+      accessToken: accessToken,
+      userInfo: userInfo
     });
   } else {
+    console.error('No access token in VK ID response:', data);
     showVKIDError('No access token received from VK ID');
   }
 }
@@ -99,9 +130,23 @@ function handleVKIDError(error) {
       case 'server_error':
         errorMessage = 'VK server error. Please try again later';
         break;
+      case 'popup_closed':
+      case 'user_closed_popup':
+        // Не показываем ошибку, если пользователь сам закрыл popup
+        console.log('User closed the authentication popup');
+        return;
       default:
         errorMessage = error.error_description || errorMessage;
     }
+  } else if (error && error.code === 2) {
+    // Особая обработка ошибки "New tab has been closed"
+    if (error.text && error.text.includes('closed')) {
+      console.log('Authentication popup was closed by user');
+      return; // Не показываем ошибку
+    }
+    errorMessage = 'Authentication window was closed unexpectedly. Please try again.';
+  } else if (typeof error === 'string') {
+    errorMessage = error;
   }
   
   showVKIDError(errorMessage);
@@ -136,10 +181,31 @@ window.Core.socket.on('social:auth:error', (data) => {
   showVKIDError(data.message || 'Authentication failed');
 });
 
+// Функция для повторной попытки инициализации
+let vkidInitAttempts = 0;
+const MAX_VKID_INIT_ATTEMPTS = 3;
+
+function retryVKIDInit() {
+  vkidInitAttempts++;
+  if (vkidInitAttempts <= MAX_VKID_INIT_ATTEMPTS) {
+    console.log(`VK ID initialization attempt ${vkidInitAttempts}`);
+    setTimeout(initializeVKID, 1000 * vkidInitAttempts);
+  } else {
+    console.error('Failed to initialize VK ID after maximum attempts');
+    showVKIDError('Failed to load VK ID. Please refresh the page and try again.');
+  }
+}
+
 // Initialize social auth when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
   // Wait for VK ID SDK to load
-  setTimeout(initializeVKID, 1000);
+  setTimeout(() => {
+    if ('VKIDSDK' in window) {
+      initializeVKID();
+    } else {
+      retryVKIDInit();
+    }
+  }, 1000);
 });
 
 // Export functions for other modules
