@@ -1,0 +1,364 @@
+// ===== CALL MODULE =====
+// Управление голосовыми и видеозвонками
+
+// Call buttons
+const endCallBtn = document.getElementById('end-call-btn');
+const muteBtn = document.getElementById('mute-btn');
+const cameraBtn = document.getElementById('camera-btn');
+
+// Call elements
+const callUserName = document.getElementById('call-user-name');
+const callAvatar = document.getElementById('call-avatar');
+const callStatus = document.getElementById('call-status');
+const localVideo = document.getElementById('local-video');
+const remoteVideo = document.getElementById('remote-video');
+
+// Call control elements
+const incomingCallControls = document.getElementById('incoming-call-controls');
+const activeCallControls = document.getElementById('active-call-controls');
+const acceptCallBtn = document.getElementById('accept-call-btn');
+const declineCallBtn = document.getElementById('decline-call-btn');
+
+// Call state
+let isMuted = false;
+let isCameraOn = true;
+
+// ===== CALL HISTORY FUNCTIONS =====
+
+function createCallHistoryMessage(callType, status, duration = null) {
+  const timestamp = Date.now();
+  let messageText = '';
+  
+  if (status === 'accepted') {
+    if (duration) {
+      const minutes = Math.floor(duration / 60);
+      const seconds = Math.floor(duration % 60);
+      const durationText = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      messageText = ` ${callType} Сall accepted - Duration: ${durationText}`;
+    } else {
+      messageText = ` ${callType} Сall accepted`;
+    }
+  } else if (status === 'rejected') {
+    messageText = ` ${callType} Сall rejected`;
+  } else if (status === 'missed') {
+    messageText = ` Missed ${callType} Сall`;
+  }
+  
+  return {
+    id: `call_${timestamp}_${Math.random().toString(36).substr(2, 9)}`,
+    from: window.Core.currentUser.id,
+    to: window.Core.currentChatUser.id,
+    text: messageText,
+    timestamp: timestamp,
+    isCallHistory: true
+  };
+}
+
+// ===== CALL INITIATION =====
+
+async function initiateCall(video) {
+  try {
+    window.Core.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video
+    });
+
+    localVideo.srcObject = window.Core.localStream;
+    if (!video) localVideo.style.display = 'none';
+
+    window.Core.peer = new SimplePeer({
+      initiator: true,
+      stream: window.Core.localStream,
+      trickle: false
+    });
+
+    window.Core.peer.on('signal', (signal) => {
+      window.Core.socket.emit('call:initiate', {
+        to: window.Core.currentChatUser.id,
+        signal,
+        callType: video ? 'video' : 'voice'
+      });
+    });
+
+    window.Core.peer.on('stream', (remoteStream) => {
+      remoteVideo.srcObject = remoteStream;
+      startAudioVisualization(remoteStream, null);
+    });
+
+    showCallScreen(window.Core.currentChatUser.name, 'Calling...', false);
+    startAudioVisualization(window.Core.localStream, null);
+    
+    // Track call start time
+    window.Core.callStartTime = Date.now();
+  } catch (error) {
+    console.error('Error accessing media devices:', error);
+    alert('Unable to access camera/microphone');
+  }
+}
+
+// ===== INCOMING CALL HANDLING =====
+
+window.Core.socket.on('call:incoming', (data) => {
+  showIncomingCall(data.caller.name, data.callType);
+  window.Core.currentCallData = data;
+});
+
+function showIncomingCall(callerName, callType) {
+  document.getElementById('chat-screen').classList.remove('active');
+  document.getElementById('call-screen').classList.add('active');
+  
+  callUserName.textContent = callerName;
+  callAvatar.textContent = callerName.charAt(0).toUpperCase();
+  callStatus.textContent = `Incoming ${callType} call...`;
+  
+  // Show incoming call controls
+  incomingCallControls.style.display = 'flex';
+  activeCallControls.style.display = 'none';
+  
+  // Add ringing animation
+  document.querySelector('.call-info').classList.add('ringing');
+}
+
+// Accept call
+acceptCallBtn.addEventListener('click', async () => {
+  if (!window.Core.currentCallData) return;
+  
+  try {
+    window.Core.localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: window.Core.currentCallData.callType === 'video'
+    });
+
+    localVideo.srcObject = window.Core.localStream;
+    if (window.Core.currentCallData.callType !== 'video') localVideo.style.display = 'none';
+
+    window.Core.peer = new SimplePeer({
+      initiator: false,
+      stream: window.Core.localStream,
+      trickle: false
+    });
+
+    window.Core.peer.on('signal', (answerSignal) => {
+      window.Core.socket.emit('call:accept', {
+        to: window.Core.currentCallData.from,
+        signal: answerSignal
+      });
+    });
+
+    window.Core.peer.on('stream', (remoteStream) => {
+      remoteVideo.srcObject = remoteStream;
+      startAudioVisualization(remoteStream, null);
+    });
+
+    window.Core.peer.signal(window.Core.currentCallData.signal);
+    
+    // Switch to active call controls
+    incomingCallControls.style.display = 'none';
+    activeCallControls.style.display = 'flex';
+    document.querySelector('.call-info').classList.remove('ringing');
+    
+    callStatus.textContent = 'Connected';
+    startAudioVisualization(window.Core.localStream, null);
+    
+    // Track call start time for accepted calls
+    window.Core.callStartTime = Date.now();
+  } catch (error) {
+    console.error('Error answering call:', error);
+    endCall();
+  }
+});
+
+// Decline call
+declineCallBtn.addEventListener('click', () => {
+  if (window.Core.currentCallData) {
+    window.Core.socket.emit('call:decline', { to: window.Core.currentCallData.from });
+    
+    // Create call history message for rejected call
+    const callHistoryMessage = createCallHistoryMessage(window.Core.currentCallData.callType, 'rejected');
+    window.Chat.displayMessage(callHistoryMessage);
+    window.Core.scrollToBottom();
+    
+    // Send call history message to server
+    window.Core.socket.emit('message:send', {
+      to: window.Core.currentChatUser.id,
+      text: callHistoryMessage.text,
+      isCallHistory: true
+    });
+  }
+  endCall();
+});
+
+// ===== CALL EVENTS =====
+
+// Call accepted
+window.Core.socket.on('call:accepted', (data) => {
+  window.Core.peer.signal(data.signal);
+  callStatus.textContent = 'Connected';
+});
+
+// Call declined
+window.Core.socket.on('call:declined', () => {
+  callStatus.textContent = 'Call declined';
+  
+  // Create call history message for declined call
+  const callHistoryMessage = createCallHistoryMessage('voice', 'rejected');
+  window.Chat.displayMessage(callHistoryMessage);
+  window.Core.scrollToBottom();
+  
+  // Send call history message to server
+  window.Core.socket.emit('message:send', {
+    to: window.Core.currentChatUser.id,
+    text: callHistoryMessage.text,
+    isCallHistory: true
+  });
+  
+  setTimeout(() => endCall(), 2000);
+});
+
+// Call answered
+window.Core.socket.on('call:answered', (data) => {
+  window.Core.peer.signal(data.signal);
+  callStatus.textContent = 'Connected';
+});
+
+// End call
+endCallBtn.addEventListener('click', () => {
+  endCall();
+  if (window.Core.currentChatUser) {
+    window.Core.socket.emit('call:end', { to: window.Core.currentChatUser.id });
+  }
+});
+
+window.Core.socket.on('call:ended', () => {
+  endCall();
+});
+
+function endCall() {
+  // Calculate call duration if call was active
+  if (window.Core.callStartTime && window.Core.currentCallData) {
+    window.Core.callEndTime = Date.now();
+    window.Core.callDuration = Math.floor((window.Core.callEndTime - window.Core.callStartTime) / 1000);
+    
+    // Create call history message for ended call
+    const callHistoryMessage = createCallHistoryMessage(window.Core.currentCallData.callType, 'accepted', window.Core.callDuration);
+    window.Chat.displayMessage(callHistoryMessage);
+    window.Core.scrollToBottom();
+    
+    // Send call history message to server
+    window.Core.socket.emit('message:send', {
+      to: window.Core.currentChatUser.id,
+      text: callHistoryMessage.text,
+      isCallHistory: true
+    });
+  }
+  
+  if (window.Core.peer) {
+    window.Core.peer.destroy();
+    window.Core.peer = null;
+  }
+
+  if (window.Core.localStream) {
+    window.Core.localStream.getTracks().forEach(track => track.stop());
+    window.Core.localStream = null;
+  }
+
+  localVideo.srcObject = null;
+  remoteVideo.srcObject = null;
+  
+  // Stop audio visualization
+  stopAudioVisualization();
+
+  // Reset UI
+  incomingCallControls.style.display = 'none';
+  activeCallControls.style.display = 'flex';
+  document.querySelector('.call-info').classList.remove('ringing');
+  
+  // Reset call tracking variables
+  window.Core.currentCallData = null;
+  window.Core.callStartTime = null;
+  window.Core.callEndTime = null;
+  window.Core.callDuration = null;
+
+  document.getElementById('call-screen').classList.remove('active');
+  document.getElementById('chat-screen').classList.add('active');
+}
+
+// ===== CALL CONTROLS =====
+
+// Mute/unmute
+muteBtn.addEventListener('click', () => {
+  if (window.Core.localStream) {
+    isMuted = !isMuted;
+    window.Core.localStream.getAudioTracks()[0].enabled = !isMuted;
+    muteBtn.style.opacity = isMuted ? '0.5' : '1';
+  }
+});
+
+// Camera on/off
+cameraBtn.addEventListener('click', () => {
+  if (window.Core.localStream) {
+    isCameraOn = !isCameraOn;
+    const videoTrack = window.Core.localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !isCameraOn;
+      cameraBtn.style.opacity = isCameraOn ? '1' : '0.5';
+      localVideo.style.display = isCameraOn ? 'block' : 'none';
+    }
+  }
+});
+
+function showCallScreen(name, status, showControls = true) {
+  document.getElementById('chat-screen').classList.remove('active');
+  document.getElementById('call-screen').classList.add('active');
+  
+  callUserName.textContent = name;
+  callAvatar.textContent = name.charAt(0).toUpperCase();
+  callStatus.textContent = status;
+  
+  if (showControls) {
+    incomingCallControls.style.display = 'none';
+    activeCallControls.style.display = 'flex';
+  }
+}
+
+// ===== AUDIO VISUALIZATION =====
+
+// Audio visualization - DISABLED (pulsating circles removed)
+let audioContext = null;
+let localAnalyser = null;
+let remoteAnalyser = null;
+let animationId = null;
+
+function startAudioVisualization(stream, circleElement) {
+  // Audio visualization disabled - no pulsating circles
+  return;
+}
+
+function stopAudioVisualization() {
+  // Audio visualization disabled - no pulsating circles
+  return;
+}
+
+function animateAudioVisualization() {
+  // Audio visualization disabled - no pulsating circles
+  return;
+}
+
+// ===== INITIALIZATION =====
+
+function initializeCall() {
+  console.log('Call module initialized');
+}
+
+// Export functions for other modules
+window.Call = {
+  initiateCall,
+  showIncomingCall,
+  endCall,
+  showCallScreen,
+  createCallHistoryMessage,
+  initializeCall
+};
+
+// Initialize on DOM load
+document.addEventListener('DOMContentLoaded', initializeCall);
