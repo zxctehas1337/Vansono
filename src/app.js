@@ -485,8 +485,67 @@ socket.on('messages:read', (data) => {
   }
 });
 
-function scrollToBottom() {
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+// Mark messages as read
+function markMessagesAsRead(chatId) {
+  const messages = JSON.parse(localStorage.getItem(`messages_${chatId}`) || '[]');
+  let hasUnreadMessages = false;
+  
+  messages.forEach(message => {
+    if (message.from !== currentUser.id && !message.read) {
+      message.read = true;
+      message.readAt = Date.now();
+      hasUnreadMessages = true;
+    }
+  });
+  
+  if (hasUnreadMessages) {
+    localStorage.setItem(`messages_${chatId}`, JSON.stringify(messages));
+    
+    // Update chat item to remove unread indicator
+    const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+    if (chatItem) {
+      chatItem.classList.remove('unread');
+      const unreadBadge = chatItem.querySelector('.unread-badge');
+      if (unreadBadge) {
+        unreadBadge.remove();
+      }
+    }
+    
+    // Send read receipt to server
+    if (socket && socket.connected) {
+      socket.emit('messages:read', { chatId: chatId });
+    }
+  }
+}
+
+// Update unread message count for chat
+function updateUnreadCount(chatId) {
+  const messages = JSON.parse(localStorage.getItem(`messages_${chatId}`) || '[]');
+  const unreadCount = messages.filter(message => 
+    message.from !== currentUser.id && !message.read
+  ).length;
+  
+  const chatItem = document.querySelector(`[data-chat-id="${chatId}"]`);
+  if (chatItem) {
+    // Remove existing unread badge
+    const existingBadge = chatItem.querySelector('.unread-badge');
+    if (existingBadge) {
+      existingBadge.remove();
+    }
+    
+    // Add new unread badge if there are unread messages
+    if (unreadCount > 0) {
+      const unreadBadge = document.createElement('div');
+      unreadBadge.className = 'unread-badge';
+      unreadBadge.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+      chatItem.appendChild(unreadBadge);
+      chatItem.classList.add('unread');
+    } else {
+      chatItem.classList.remove('unread');
+    }
+  }
+  
+  return unreadCount;
 }
 
 function escapeHtml(text) {
@@ -1201,7 +1260,13 @@ saveProfileBtn.addEventListener('click', () => {
   const newUsername = profileUsername.value.trim();
   
   if (!newName || !newUsername) {
-    alert('Please fill in all fields');
+    showNotification('Please fill in all fields', 'error');
+    return;
+  }
+  
+  // Check if username is valid
+  if (!newUsername.startsWith('@')) {
+    showNotification('Username must start with @', 'error');
     return;
   }
   
@@ -1210,13 +1275,25 @@ saveProfileBtn.addEventListener('click', () => {
     currentUser.name = newName;
     currentUser.username = newUsername;
     
+    // Update avatar letter if changed
+    const newLetter = avatarLetter.value.toUpperCase();
+    if (newLetter) {
+      currentUser.avatarLetter = newLetter;
+    }
+    
+    // Update avatar color if selected
+    const selectedColor = document.querySelector('.color-option.selected')?.dataset.color;
+    if (selectedColor) {
+      currentUser.avatarColor = selectedColor;
+    }
+    
     // Update display
     updateUserDisplay(currentUser);
     
     // Save to localStorage
     localStorage.setItem('userData', JSON.stringify(currentUser));
     
-    alert('Profile updated successfully!');
+    showNotification('Profile updated successfully', 'success');
   }
 });
 
@@ -1435,7 +1512,7 @@ function renderFolders() {
 
 // Get chats in folder
 function getChatsInFolder(folderId) {
-  const allChats = JSON.parse(localStorage.getItem('chatFolders') || '[]');
+  const allChats = JSON.parse(localStorage.getItem('chats') || '[]');
   return allChats.filter(chat => chat.folderId === folderId);
 }
 
@@ -1464,6 +1541,115 @@ function filterChatsByFolder(folderId) {
       item.style.display = 'none';
     }
   });
+}
+
+// Delete folder
+function deleteFolder(folderId) {
+  showConfirmationDialog(
+    'Delete Folder',
+    'Are you sure you want to delete this folder? All chats in this folder will be moved to the main chat list.',
+    () => {
+      // Move chats from folder to main list
+      const chats = JSON.parse(localStorage.getItem('chats') || '[]');
+      chats.forEach(chat => {
+        if (chat.folderId === folderId) {
+          chat.folderId = null;
+        }
+      });
+      localStorage.setItem('chats', JSON.stringify(chats));
+      
+      // Remove folder
+      folders = folders.filter(folder => folder.id !== folderId);
+      saveFolders();
+      renderFolders();
+      
+      // Clear selection if this folder was selected
+      if (currentFolder === folderId) {
+        currentFolder = null;
+        filterChatsByFolder('all');
+      }
+      
+      showNotification('Folder deleted', 'success');
+    }
+  );
+}
+
+// Edit folder
+function editFolder(folderId) {
+  const folder = folders.find(f => f.id === folderId);
+  if (!folder) return;
+  
+  // Pre-fill modal with folder data
+  folderNameInput.value = folder.name;
+  
+  // Select the folder's color
+  document.querySelectorAll('.color-option').forEach(option => {
+    option.classList.remove('selected');
+    if (option.dataset.color === folder.color) {
+      option.classList.add('selected');
+    }
+  });
+  
+  // Show modal
+  folderModal.classList.add('active');
+  
+  // Update create button to edit mode
+  createFolderBtn.textContent = 'Update Folder';
+  createFolderBtn.onclick = () => {
+    const name = folderNameInput.value.trim();
+    const selectedColor = document.querySelector('.color-option.selected')?.dataset.color || '#667eea';
+    
+    if (!name) {
+      showNotification('Please enter folder name', 'error');
+      return;
+    }
+    
+    // Update folder
+    folder.name = name;
+    folder.color = selectedColor;
+    
+    saveFolders();
+    renderFolders();
+    
+    folderModal.classList.remove('active');
+    resetFolderModal();
+    
+    showNotification('Folder updated', 'success');
+  };
+}
+
+// Add chat to folder
+function addChatToFolder(chatId, folderId) {
+  const chats = JSON.parse(localStorage.getItem('chats') || '[]');
+  const chat = chats.find(c => c.id === chatId);
+  
+  if (chat) {
+    chat.folderId = folderId;
+    localStorage.setItem('chats', JSON.stringify(chats));
+    
+    // Update UI
+    renderChats();
+    renderFolders();
+    
+    showNotification('Chat added to folder', 'success');
+  }
+}
+
+// Remove chat from folder
+function removeChatFromFolder(chatId) {
+  const chats = JSON.parse(localStorage.getItem('chats') || '[]');
+  const chat = chats.find(c => c.id === chatId);
+  
+  if (chat) {
+    chat.folderId = null;
+    localStorage.setItem('chats', JSON.stringify(chats));
+    
+    // Update UI
+    renderChats();
+    renderFolders();
+    
+    showNotification('Chat removed from folder', 'success');
+  }
 }
 
 // Add folder modal
@@ -1617,13 +1803,7 @@ function saveSecretChats() {
 
 // Populate users for secret chat
 function populateSecretChatUsers() {
-  // This would be populated from the users list
-  // For now, we'll add some dummy users
-  const users = [
-    { id: '1', name: 'John Doe', username: 'john' },
-    { id: '2', name: 'Jane Smith', username: 'jane' },
-    { id: '3', name: 'Bob Johnson', username: 'bob' }
-  ];
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
   
   secretChatUserSelect.innerHTML = '<option value="">Choose a user...</option>';
   users.forEach(user => {
@@ -1639,6 +1819,98 @@ createSecretChatBtn.addEventListener('click', () => {
   secretChatModal.classList.add('active');
 });
 
+// Settings buttons from Settings screen
+const createGroupBtnSettings = document.getElementById('create-group-btn-settings');
+const createChannelBtnSettings = document.getElementById('create-channel-btn-settings');
+const createSecretChatBtnSettings = document.getElementById('create-secret-chat-btn-settings');
+const createFolderBtnSettings = document.getElementById('create-folder-btn-settings');
+
+// Background customization
+const backgroundOptions = document.querySelectorAll('.background-option');
+
+// Initialize settings functionality
+function initializeSettings() {
+  setupSettingsButtons();
+  setupBackgroundCustomization();
+}
+
+// Setup settings buttons
+function setupSettingsButtons() {
+  if (createGroupBtnSettings) {
+    createGroupBtnSettings.addEventListener('click', () => {
+      createGroupModal.classList.add('active');
+    });
+  }
+  
+  if (createChannelBtnSettings) {
+    createChannelBtnSettings.addEventListener('click', () => {
+      createChannelModal.classList.add('active');
+    });
+  }
+  
+  if (createSecretChatBtnSettings) {
+    createSecretChatBtnSettings.addEventListener('click', () => {
+      secretChatModal.classList.add('active');
+    });
+  }
+  
+  if (createFolderBtnSettings) {
+    createFolderBtnSettings.addEventListener('click', () => {
+      folderModal.classList.add('active');
+    });
+  }
+}
+
+// Setup background customization
+function setupBackgroundCustomization() {
+  backgroundOptions.forEach(option => {
+    option.addEventListener('click', () => {
+      // Remove selected class from all options
+      backgroundOptions.forEach(opt => opt.classList.remove('selected'));
+      
+      // Add selected class to clicked option
+      option.classList.add('selected');
+      
+      // Apply background
+      const background = option.dataset.background;
+      applyBackground(background);
+      
+      // Save preference
+      localStorage.setItem('selectedBackground', background);
+    });
+  });
+  
+  // Load saved background
+  const savedBackground = localStorage.getItem('selectedBackground') || 'default';
+  const savedOption = document.querySelector(`[data-background="${savedBackground}"]`);
+  if (savedOption) {
+    savedOption.classList.add('selected');
+    applyBackground(savedBackground);
+  }
+}
+
+// Apply background
+function applyBackground(background) {
+  const body = document.body;
+  
+  switch (background) {
+    case 'default':
+      body.style.background = 'var(--bg-primary)';
+      break;
+    case 'gradient1':
+      body.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+      break;
+    case 'gradient2':
+      body.style.background = 'linear-gradient(135deg, #10B981, #059669)';
+      break;
+    case 'gradient3':
+      body.style.background = 'linear-gradient(135deg, #F59E0B, #D97706)';
+      break;
+    default:
+      body.style.background = 'var(--bg-primary)';
+  }
+}
+
 // Close secret chat modal
 closeSecretModal.addEventListener('click', () => {
   secretChatModal.classList.remove('active');
@@ -1650,13 +1922,107 @@ cancelSecretBtn.addEventListener('click', () => {
   resetSecretModal();
 });
 
+// Initialize fancy Secret Chat UI
+function initializeFancySecretChat() {
+    const secretUserSearch = document.getElementById('secret-user-search');
+    const secretUserDropdown = document.getElementById('secret-user-dropdown');
+    const timerOptions = document.querySelectorAll('.timer-option');
+
+    let selectedUser = null;
+    let selectedTimer = '1h';
+
+    // User search functionality
+    if (secretUserSearch) {
+        secretUserSearch.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filteredUsers = searchUsers(query);
+            renderSecretUserDropdown(filteredUsers);
+        });
+
+        secretUserSearch.addEventListener('focus', () => {
+            const query = secretUserSearch.value.toLowerCase();
+            const filteredUsers = searchUsers(query);
+            renderSecretUserDropdown(filteredUsers);
+        });
+    }
+
+    // Timer selection
+    timerOptions.forEach(option => {
+        option.addEventListener('click', () => {
+            timerOptions.forEach(opt => opt.classList.remove('selected'));
+            option.classList.add('selected');
+            selectedTimer = option.dataset.timer;
+        });
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.user-search-container')) {
+            if (secretUserDropdown) {
+                secretUserDropdown.classList.remove('active');
+            }
+        }
+    });
+
+    function renderSecretUserDropdown(users) {
+        if (!secretUserDropdown) return;
+        
+        secretUserDropdown.innerHTML = '';
+        
+        if (users.length === 0) {
+            secretUserDropdown.innerHTML = '<div class="no-users">No users found</div>';
+        } else {
+            users.forEach(user => {
+                const userItem = document.createElement('div');
+                userItem.className = 'user-dropdown-item';
+                userItem.innerHTML = `
+                    <div class="user-dropdown-avatar">${user.name.charAt(0).toUpperCase()}</div>
+                    <div class="user-dropdown-info">
+                        <div class="user-dropdown-name">${user.name}</div>
+                        <div class="user-dropdown-username">@${user.username}</div>
+                    </div>
+                `;
+                
+                userItem.addEventListener('click', () => {
+                    selectedUser = user;
+                    secretUserSearch.value = user.name;
+                    secretUserDropdown.classList.remove('active');
+                });
+                
+                secretUserDropdown.appendChild(userItem);
+            });
+        }
+        
+        secretUserDropdown.classList.add('active');
+    }
+}
+
 // Create secret chat
 createSecretBtn.addEventListener('click', () => {
-  const userId = secretChatUserSelect.value;
-  const timer = parseInt(selfDestructTimerSelect.value);
+  // Use the new fancy UI if available
+  const secretUserSearch = document.getElementById('secret-user-search');
+  const selectedTimerOption = document.querySelector('.timer-option.selected');
+  
+  let userId, timer;
+  
+  if (secretUserSearch && selectedTimerOption) {
+    // Use fancy UI
+    const selectedUserItem = document.querySelector('.user-dropdown-item.selected');
+    if (!selectedUserItem) {
+      showNotification('Please select a user', 'error');
+      return;
+    }
+    
+    userId = selectedUserItem.dataset.userId;
+    timer = parseInt(selectedTimerOption.dataset.timer);
+  } else {
+    // Fallback to old UI
+    userId = secretChatUserSelect.value;
+    timer = parseInt(selfDestructTimerSelect.value);
+  }
   
   if (!userId) {
-    alert('Please select a user');
+    showNotification('Please select a user', 'error');
     return;
   }
   
@@ -2378,13 +2744,25 @@ function sendVoiceMessage() {
     type: 'voice',
     audioUrl: audioUrl,
     duration: Math.floor((Date.now() - recordingStartTime) / 1000),
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    read: false
   };
   
-  // Save to localStorage (in production, this would be sent to server)
-  const messages = JSON.parse(localStorage.getItem(`messages_${currentChatUser.id}`) || '[]');
-  messages.push(voiceMessage);
-  localStorage.setItem(`messages_${currentChatUser.id}`, JSON.stringify(messages));
+  // Save to localStorage for both sender and receiver
+  const senderMessages = JSON.parse(localStorage.getItem(`messages_${currentChatUser.id}`) || '[]');
+  senderMessages.push(voiceMessage);
+  localStorage.setItem(`messages_${currentChatUser.id}`, JSON.stringify(senderMessages));
+  
+  // Also save to receiver's messages (simulating real-time sync)
+  const receiverMessages = JSON.parse(localStorage.getItem(`messages_${currentUser.id}`) || '[]');
+  const receiverMessage = { ...voiceMessage, from: currentUser.id, to: currentChatUser.id };
+  receiverMessages.push(receiverMessage);
+  localStorage.setItem(`messages_${currentUser.id}`, JSON.stringify(receiverMessages));
+  
+  // Send via socket for real-time delivery
+  if (socket && socket.connected) {
+    socket.emit('message:send', voiceMessage);
+  }
   
   // Display voice message
   displayVoiceMessage(voiceMessage);
@@ -2460,26 +2838,47 @@ function generateWaveform() {
   return waveform;
 }
 
+// Voice message playback management
+let currentPlayingAudio = null;
+let currentPlayingMessageId = null;
+
 // Play voice message
 function playVoiceMessage(messageId, audioUrl) {
-  const audio = new Audio(audioUrl);
   const playBtn = document.querySelector(`[onclick="playVoiceMessage('${messageId}', '${audioUrl}')"]`);
   const waveform = document.getElementById(`waveform-${messageId}`);
   
-  if (audio.paused) {
-    audio.play();
-    playBtn.classList.add('playing');
-    playBtn.innerHTML = `
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <rect x="2" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
-        <rect x="7" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
-      </svg>
-    `;
-    
-    // Animate waveform
-    animateWaveform(waveform);
-    
-    audio.onended = () => {
+  // Stop any currently playing audio
+  if (currentPlayingAudio && !currentPlayingAudio.paused) {
+    currentPlayingAudio.pause();
+    const currentPlayBtn = document.querySelector(`[onclick="playVoiceMessage('${currentPlayingMessageId}', '${currentPlayingAudio.src}')"]`);
+    if (currentPlayBtn) {
+      currentPlayBtn.classList.remove('playing');
+      currentPlayBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      `;
+    }
+    const currentWaveform = document.getElementById(`waveform-${currentPlayingMessageId}`);
+    if (currentWaveform) {
+      stopWaveformAnimation(currentWaveform);
+    }
+  }
+  
+  // If clicking the same message, toggle play/pause
+  if (currentPlayingMessageId === messageId && currentPlayingAudio) {
+    if (currentPlayingAudio.paused) {
+      currentPlayingAudio.play();
+      playBtn.classList.add('playing');
+      playBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="2" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
+          <rect x="7" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
+      `;
+      animateWaveform(waveform);
+    } else {
+      currentPlayingAudio.pause();
       playBtn.classList.remove('playing');
       playBtn.innerHTML = `
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -2487,9 +2886,28 @@ function playVoiceMessage(messageId, audioUrl) {
         </svg>
       `;
       stopWaveformAnimation(waveform);
-    };
-  } else {
-    audio.pause();
+    }
+    return;
+  }
+  
+  // Start playing new audio
+  const audio = new Audio(audioUrl);
+  currentPlayingAudio = audio;
+  currentPlayingMessageId = messageId;
+  
+  audio.play();
+  playBtn.classList.add('playing');
+  playBtn.innerHTML = `
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <rect x="2" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
+      <rect x="7" y="2" width="3" height="8" stroke="currentColor" stroke-width="1.5"/>
+    </svg>
+  `;
+  
+  // Animate waveform
+  animateWaveform(waveform);
+  
+  audio.onended = () => {
     playBtn.classList.remove('playing');
     playBtn.innerHTML = `
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -2497,7 +2915,22 @@ function playVoiceMessage(messageId, audioUrl) {
       </svg>
     `;
     stopWaveformAnimation(waveform);
-  }
+    currentPlayingAudio = null;
+    currentPlayingMessageId = null;
+  };
+  
+  audio.onerror = () => {
+    playBtn.classList.remove('playing');
+    playBtn.innerHTML = `
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <path d="M3 2L9 6L3 10V2Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+      </svg>
+    `;
+    stopWaveformAnimation(waveform);
+    currentPlayingAudio = null;
+    currentPlayingMessageId = null;
+    showNotification('Error playing voice message', 'error');
+  };
 }
 
 // Animate waveform
@@ -2582,26 +3015,47 @@ function setupGroupChatModal() {
 
 // Populate members list
 function populateMembersList() {
-  // This would be populated from actual users
-  const users = [
-    { id: '1', name: 'John Doe', username: 'john' },
-    { id: '2', name: 'Jane Smith', username: 'jane' },
-    { id: '3', name: 'Bob Johnson', username: 'bob' },
-    { id: '4', name: 'Alice Brown', username: 'alice' },
-    { id: '5', name: 'Charlie Wilson', username: 'charlie' }
-  ];
+  // Get users from localStorage or create default users
+  let users = JSON.parse(localStorage.getItem('users') || '[]');
+  
+  // If no users exist, create some default users
+  if (users.length === 0) {
+    users = [
+      { id: '1', name: 'John Doe', username: 'john', email: 'john@example.com', avatar: 'J' },
+      { id: '2', name: 'Jane Smith', username: 'jane', email: 'jane@example.com', avatar: 'J' },
+      { id: '3', name: 'Bob Johnson', username: 'bob', email: 'bob@example.com', avatar: 'B' },
+      { id: '4', name: 'Alice Brown', username: 'alice', email: 'alice@example.com', avatar: 'A' },
+      { id: '5', name: 'Charlie Wilson', username: 'charlie', email: 'charlie@example.com', avatar: 'C' },
+      { id: '6', name: 'Diana Prince', username: 'diana', email: 'diana@example.com', avatar: 'D' },
+      { id: '7', name: 'Eve Adams', username: 'eve', email: 'eve@example.com', avatar: 'E' },
+      { id: '8', name: 'Frank Miller', username: 'frank', email: 'frank@example.com', avatar: 'F' }
+    ];
+    localStorage.setItem('users', JSON.stringify(users));
+  }
 
+  renderMembersList(users);
+}
+
+// Render members list
+function renderMembersList(users) {
   membersList.innerHTML = '';
+  
+  if (users.length === 0) {
+    membersList.innerHTML = '<div class="no-users">No users found</div>';
+    return;
+  }
+  
   users.forEach(user => {
     const memberEl = document.createElement('div');
     memberEl.className = 'member-item';
     memberEl.dataset.userId = user.id;
     
     memberEl.innerHTML = `
-      <div class="member-avatar">${user.name.charAt(0).toUpperCase()}</div>
+      <div class="member-avatar">${user.avatar || user.name.charAt(0).toUpperCase()}</div>
       <div class="member-info">
         <div class="member-name">${user.name}</div>
         <div class="member-username">@${user.username}</div>
+        ${user.email ? `<div class="member-email">${user.email}</div>` : ''}
       </div>
       <div class="member-checkbox">
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="display: none;">
@@ -2618,19 +3072,33 @@ function populateMembersList() {
   });
 }
 
-// Filter members
+// Filter members based on search query
 function filterMembers(query) {
-  const memberItems = membersList.querySelectorAll('.member-item');
-  memberItems.forEach(item => {
-    const name = item.querySelector('.member-name').textContent.toLowerCase();
-    const username = item.querySelector('.member-username').textContent.toLowerCase();
-    
-    if (name.includes(query) || username.includes(query)) {
-      item.style.display = 'flex';
-    } else {
-      item.style.display = 'none';
-    }
-  });
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  
+  if (!query.trim()) {
+    renderMembersList(users);
+    return;
+  }
+  
+  const filteredUsers = users.filter(user => 
+    user.name.toLowerCase().includes(query) ||
+    user.username.toLowerCase().includes(query) ||
+    (user.email && user.email.toLowerCase().includes(query))
+  );
+  
+  renderMembersList(filteredUsers);
+}
+
+// Search users function
+function searchUsers(query) {
+  const users = JSON.parse(localStorage.getItem('users') || '[]');
+  
+  return users.filter(user => 
+    user.name.toLowerCase().includes(query.toLowerCase()) ||
+    user.username.toLowerCase().includes(query.toLowerCase()) ||
+    (user.email && user.email.toLowerCase().includes(query.toLowerCase()))
+  );
 }
 
 // Toggle member selection
@@ -3052,11 +3520,104 @@ function editMessage(messageId) {
   });
 }
 
+// Custom confirmation dialog
+function showConfirmationDialog(title, message, onConfirm, onCancel = null) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay active';
+  overlay.style.zIndex = '10000';
+  
+  overlay.innerHTML = `
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>${title}</h3>
+        <button class="icon-btn" id="close-confirm-modal" title="Close">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-primary); font-size: 16px; line-height: 1.5;">${message}</p>
+      </div>
+      <div class="modal-footer">
+        <button class="secondary-btn" id="cancel-confirm-btn">Cancel</button>
+        <button class="primary-btn" id="confirm-btn" style="background: var(--error);">Confirm</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(overlay);
+  
+  // Event listeners
+  const closeBtn = overlay.querySelector('#close-confirm-modal');
+  const cancelBtn = overlay.querySelector('#cancel-confirm-btn');
+  const confirmBtn = overlay.querySelector('#confirm-btn');
+  
+  const cleanup = () => {
+    overlay.remove();
+  };
+  
+  closeBtn.addEventListener('click', () => {
+    cleanup();
+    if (onCancel) onCancel();
+  });
+  
+  cancelBtn.addEventListener('click', () => {
+    cleanup();
+    if (onCancel) onCancel();
+  });
+  
+  confirmBtn.addEventListener('click', () => {
+    cleanup();
+    onConfirm();
+  });
+  
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      cleanup();
+      if (onCancel) onCancel();
+    }
+  });
+}
+
 // Delete message
 function deleteMessage(messageId) {
-  if (confirm('Are you sure you want to delete this message?')) {
-    socket.emit('message:delete', { messageId });
-  }
+  showConfirmationDialog(
+    'Delete Message',
+    'Are you sure you want to delete this message? This action cannot be undone.',
+    () => {
+      // Update local storage
+      const messages = JSON.parse(localStorage.getItem(`messages_${currentChatUser.id}`) || '[]');
+      const messageIndex = messages.findIndex(msg => msg.id === messageId);
+      if (messageIndex !== -1) {
+        messages[messageIndex].deleted = true;
+        localStorage.setItem(`messages_${currentChatUser.id}`, JSON.stringify(messages));
+        
+        // Update UI
+        const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+        if (messageEl) {
+          const messageBubble = messageEl.querySelector('.message-bubble');
+          messageBubble.textContent = 'This message was deleted';
+          messageBubble.classList.add('deleted-message');
+          messageEl.classList.add('deleted');
+          
+          // Hide message actions
+          const messageActions = messageEl.querySelector('.message-actions');
+          if (messageActions) {
+            messageActions.style.display = 'none';
+          }
+        }
+      }
+      
+      // Send to server
+      if (socket && socket.connected) {
+        socket.emit('message:delete', { messageId });
+      }
+      
+      showNotification('Message deleted', 'success');
+    }
+  );
 }
 
 // Pin message
@@ -3079,30 +3640,123 @@ function showReactionPicker(messageId) {
   
   // Position picker
   const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
-  const rect = messageEl.getBoundingClientRect();
-  picker.style.position = 'absolute';
-  picker.style.left = `${rect.left}px`;
-  picker.style.top = `${rect.top - 50}px`;
-  
-  document.body.appendChild(picker);
-  
-  // Remove picker when clicking outside
-  setTimeout(() => {
-    document.addEventListener('click', function removePicker() {
-      picker.remove();
-      document.removeEventListener('click', removePicker);
-    });
-  }, 100);
+  if (messageEl) {
+    const rect = messageEl.getBoundingClientRect();
+    picker.style.position = 'absolute';
+    picker.style.left = `${rect.left}px`;
+    picker.style.top = `${rect.top - 50}px`;
+    
+    document.body.appendChild(picker);
+    
+    // Remove picker when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function removePicker() {
+        picker.remove();
+        document.removeEventListener('click', removePicker);
+      });
+    }, 100);
+  }
 }
 
 // Add reaction
 function addReaction(messageId, emoji) {
-  socket.emit('message:react', { messageId, emoji });
+  // Update local storage
+  const messages = JSON.parse(localStorage.getItem(`messages_${currentChatUser.id}`) || '[]');
+  const messageIndex = messages.findIndex(msg => msg.id === messageId);
+  
+  if (messageIndex !== -1) {
+    if (!messages[messageIndex].reactions) {
+      messages[messageIndex].reactions = {};
+    }
+    
+    if (!messages[messageIndex].reactions[emoji]) {
+      messages[messageIndex].reactions[emoji] = [];
+    }
+    
+    // Add current user to reaction if not already there
+    if (!messages[messageIndex].reactions[emoji].includes(currentUser.id)) {
+      messages[messageIndex].reactions[emoji].push(currentUser.id);
+    }
+    
+    localStorage.setItem(`messages_${currentChatUser.id}`, JSON.stringify(messages));
+    
+    // Update UI
+    updateMessageReactions(messageId, messages[messageIndex].reactions);
+  }
+  
+  // Send to server
+  if (socket && socket.connected) {
+    socket.emit('message:react', { messageId, emoji });
+  }
 }
 
 // Toggle reaction
 function toggleReaction(messageId, emoji) {
-  socket.emit('message:react', { messageId, emoji });
+  // Update local storage
+  const messages = JSON.parse(localStorage.getItem(`messages_${currentChatUser.id}`) || '[]');
+  const messageIndex = messages.findIndex(msg => msg.id === messageId);
+  
+  if (messageIndex !== -1) {
+    if (!messages[messageIndex].reactions) {
+      messages[messageIndex].reactions = {};
+    }
+    
+    if (!messages[messageIndex].reactions[emoji]) {
+      messages[messageIndex].reactions[emoji] = [];
+    }
+    
+    const userIds = messages[messageIndex].reactions[emoji];
+    const userIndex = userIds.indexOf(currentUser.id);
+    
+    if (userIndex === -1) {
+      // Add reaction
+      userIds.push(currentUser.id);
+    } else {
+      // Remove reaction
+      userIds.splice(userIndex, 1);
+      
+      // Remove emoji if no users left
+      if (userIds.length === 0) {
+        delete messages[messageIndex].reactions[emoji];
+      }
+    }
+    
+    localStorage.setItem(`messages_${currentChatUser.id}`, JSON.stringify(messages));
+    
+    // Update UI
+    updateMessageReactions(messageId, messages[messageIndex].reactions);
+  }
+  
+  // Send to server
+  if (socket && socket.connected) {
+    socket.emit('message:react', { messageId, emoji });
+  }
+}
+
+// Update message reactions in UI
+function updateMessageReactions(messageId, reactions) {
+  const messageEl = document.querySelector(`[data-message-id="${messageId}"]`);
+  if (!messageEl) return;
+  
+  let reactionsContainer = messageEl.querySelector('.message-reactions');
+  
+  if (!reactionsContainer) {
+    reactionsContainer = document.createElement('div');
+    reactionsContainer.className = 'message-reactions';
+    messageEl.querySelector('.message-content').appendChild(reactionsContainer);
+  }
+  
+  if (Object.keys(reactions).length === 0) {
+    reactionsContainer.innerHTML = '';
+    return;
+  }
+  
+  reactionsContainer.innerHTML = Object.entries(reactions).map(([emoji, userIds]) => `
+    <button class="reaction-btn" onclick="toggleReaction('${messageId}', '${emoji}')">
+      <span class="reaction-emoji">${emoji}</span>
+      <span class="reaction-count">${userIds.length}</span>
+    </button>
+  `).join('');
 }
 
 // ===== MESSAGE REPLIES =====
@@ -3420,10 +4074,12 @@ function sendMessageWithReplies() {
 document.addEventListener('DOMContentLoaded', () => {
   initializeFolders();
   initializeSecretChats();
+  initializeFancySecretChat();
   initializeMessageForwarding();
   initializeVoiceMessages();
   initializeGroupChats();
   initializeFavoritesInChats();
   initializeChannels();
+  initializeSettings();
   requestNotificationPermission();
 });

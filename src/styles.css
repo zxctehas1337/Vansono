@@ -411,6 +411,26 @@ body {
   background: var(--bg-tertiary);
 }
 
+.chat-item.unread {
+  background: var(--bg-tertiary);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.unread-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: var(--accent-primary);
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.2;
+}
+
 .chat-item-info {
   flex: 1;
   min-width: 0;
@@ -899,64 +919,88 @@ body {
 }
 
 .menu-overlay.active {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
 }
 
-.menu-content {
+/* Telegram-style Menu */
+.menu-content.telegram-style {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 100vh;
   background: var(--bg-secondary);
-  border-radius: 16px;
-  padding: 24px;
-  width: 320px;
-  max-width: 90vw;
-  border: 1px solid var(--border-color);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  border-right: 1px solid var(--border-color);
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+  z-index: 1001;
 }
 
-.menu-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
+.menu-overlay.active .menu-content.telegram-style {
+  transform: translateX(0);
+}
+
+.menu-content.telegram-style .menu-header {
+  padding: 20px;
   border-bottom: 1px solid var(--border-color);
-}
-
-.menu-header h2 {
-  font-size: 20px;
-  font-weight: 600;
-}
-
-.menu-items {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  background: transparent;
-  border: none;
-  border-radius: 12px;
-  color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: left;
-  width: 100%;
-}
-
-.menu-item:hover {
   background: var(--bg-tertiary);
 }
 
-.menu-item svg {
-  flex-shrink: 0;
+.menu-content.telegram-style .menu-items {
+  padding: 16px 0;
+}
+
+.menu-content.telegram-style .menu-item {
+  width: 100%;
+  padding: 16px 20px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  text-align: left;
+  justify-content: flex-start;
+}
+
+.menu-content.telegram-style .menu-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.menu-content.telegram-style .menu-item:last-child {
+  border-bottom: none;
+}
+
+/* Background Options */
+.background-options {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.background-option {
+  padding: 16px;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: white;
+  font-weight: 500;
+  text-align: center;
+  position: relative;
+}
+
+.background-option:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+.background-option.selected {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.3);
+}
+
+.background-option span {
+  position: relative;
+  z-index: 1;
 }
 
 /* Profile Screen */
@@ -1467,10 +1511,143 @@ body {
   border-color: var(--text-tertiary);
 }
 
-/* Secret Chat Styles */
-.secret-chat-section {
-  padding: 16px 20px;
-  border-top: 1px solid var(--border-color);
+/* Secret Chat Fancy UI */
+.user-search-container {
+  position: relative;
+}
+
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.user-dropdown.active {
+  display: block;
+}
+
+.user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.user-dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.user-dropdown-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.user-dropdown-item.selected {
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--accent-primary);
+}
+
+.user-dropdown-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.user-dropdown-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-dropdown-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.user-dropdown-username {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.timer-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.timer-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--bg-tertiary);
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+}
+
+.timer-option:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-hover);
+  transform: translateY(-2px);
+}
+
+.timer-option.selected {
+  border-color: var(--accent-primary);
+  background: rgba(102, 126, 234, 0.1);
+}
+
+.timer-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  color: white;
+  flex-shrink: 0;
+}
+
+.timer-info {
+  flex: 1;
+}
+
+.timer-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.timer-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 .secret-chat-btn {
@@ -2150,6 +2327,19 @@ textarea:focus {
 .member-username {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.member-email {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+.no-users {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-style: italic;
 }
 
 .member-checkbox {
