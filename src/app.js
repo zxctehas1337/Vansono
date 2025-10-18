@@ -37,8 +37,13 @@ document.addEventListener('DOMContentLoaded', () => {
       window.Features.initializeFeatures();
     }
     
+    // Social Auth module
+    if (window.SocialAuth && window.SocialAuth.initializeSocialAuth) {
+      window.SocialAuth.initializeSocialAuth();
+    }
     
   } catch (error) {
+    console.error('Error during app initialization:', error);
   }
 });
 

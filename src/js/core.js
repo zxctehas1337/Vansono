@@ -427,5 +427,5 @@ window.Core = {
   initializeCore
 };
 
-// Initialize on DOM load
-document.addEventListener('DOMContentLoaded', initializeCore);
+// Initialize on DOM load (handled by app.js)
+// document.addEventListener('DOMContentLoaded', initializeCore);

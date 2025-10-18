@@ -1029,6 +1029,77 @@ app.get('/chat/:userId', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../src/index.html'));
 });
 
+// OAuth callback handler for Yandex
+app.get('/oauth/yandex/callback', (req, res) => {
+  const { code, error } = req.query;
+  
+  if (error) {
+    return res.send(`
+      <script>
+        window.opener?.postMessage({
+          type: 'YANDEX_AUTH_ERROR',
+          error: '${error}'
+        }, window.location.origin);
+        window.close();
+      </script>
+    `);
+  }
+  
+  if (code) {
+    return res.send(`
+      <script>
+        // Exchange code for token
+        fetch('/api/yandex/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            code: '${code}',
+            redirect_uri: '${req.protocol}://${req.get('host')}/chats'
+          })
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.error) {
+            throw new Error(data.error);
+          }
+          
+          // Get user info
+          return fetch('/api/yandex/user', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              access_token: data.access_token
+            })
+          });
+        })
+        .then(response => response.json())
+        .then(userData => {
+          window.opener?.postMessage({
+            type: 'YANDEX_AUTH_SUCCESS',
+            access_token: userData.access_token,
+            ...userData
+          }, window.location.origin);
+          window.close();
+        })
+        .catch(error => {
+          console.error('OAuth token exchange error:', error);
+          window.opener?.postMessage({
+            type: 'YANDEX_AUTH_ERROR',
+            error: error.message
+          }, window.location.origin);
+          window.close();
+        });
+      </script>
+    `);
+  }
+  
+  res.status(400).send('Invalid OAuth callback');
+});
+
 // Serve static files
 app.use(express.static(path.resolve(__dirname, '../src')));
 app.use((_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));

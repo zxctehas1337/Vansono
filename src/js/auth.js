@@ -171,17 +171,23 @@ function logout() {
 // ===== KEYBOARD NAVIGATION =====
 
 // Handle Enter key in login inputs
-loginUsername.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') loginPassword.focus();
-});
+if (loginUsername) {
+  loginUsername.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') loginPassword.focus();
+  });
+}
 
-loginPassword.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') loginCaptcha.focus();
-});
+if (loginPassword) {
+  loginPassword.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') loginCaptcha.focus();
+  });
+}
 
-loginCaptcha.addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') loginBtn.click();
-});
+if (loginCaptcha) {
+  loginCaptcha.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') loginBtn.click();
+  });
+}
 
 // ===== INITIALIZATION =====
 
@@ -199,5 +205,5 @@ window.Auth = {
   initializeAuth
 };
 
-// Initialize on DOM load
-document.addEventListener('DOMContentLoaded', initializeAuth);
+// Initialize on DOM load (handled by app.js)
+// document.addEventListener('DOMContentLoaded', initializeAuth);

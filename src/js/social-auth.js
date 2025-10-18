@@ -10,7 +10,7 @@ const GOOGLE_CONFIG = {
 // Yandex OAuth Configuration
 const YANDEX_CONFIG = {
   clientId: '8217fc55c26e4c35bf819d35f47072a3', // Замените на ваш Yandex Client ID из config.env
-  redirectUri: window.location.origin + '/chats'
+  redirectUri: window.location.origin + '/oauth/yandex/callback'
 };
 
 // Initialize Google OAuth
@@ -176,9 +176,12 @@ function showSocialAuthError(message) {
 }
 
 // Handle social authentication response from server
+let socketHandlersRegistered = false;
+
 function registerSocketHandlers() {
-  if (window.Core && window.Core.socket) {
+  if (window.Core && window.Core.socket && !socketHandlersRegistered) {
     console.log('Registering socket handlers for social auth...');
+    socketHandlersRegistered = true;
     
     window.Core.socket.on('social:auth:success', (data) => {
       console.log('Social authentication successful:', data);
@@ -190,7 +193,31 @@ function registerSocketHandlers() {
       
       window.Core.currentUser = data.user;
       window.Core.updateUserDisplay(data.user);
-      window.Core.initializeChat();
+      
+      // Switch to chat screen
+      const authScreen = document.getElementById('auth-screen');
+      const chatScreen = document.getElementById('chat-screen');
+      
+      console.log('Switching screens:', { authScreen: !!authScreen, chatScreen: !!chatScreen });
+      
+      if (authScreen) {
+        authScreen.classList.remove('active');
+        console.log('Auth screen deactivated');
+      }
+      if (chatScreen) {
+        chatScreen.classList.add('active');
+        console.log('Chat screen activated');
+      }
+      
+      // Handle routing after authentication
+      if (window.Core && window.Core.handleRouting) {
+        window.Core.handleRouting();
+        console.log('Routing handled');
+      } else {
+        console.warn('Core.handleRouting not available');
+      }
+      
+      console.log('User interface switched to chat screen successfully');
     });
 
     window.Core.socket.on('social:auth:error', (data) => {
@@ -203,9 +230,9 @@ function registerSocketHandlers() {
   }
 }
 
-// Initialize social auth when DOM is loaded
-document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM loaded, initializing social auth...');
+// Initialize social auth (handled by app.js)
+function initializeSocialAuth() {
+  console.log('Initializing social auth...');
   
   // Register socket handlers
   registerSocketHandlers();
@@ -251,76 +278,9 @@ document.addEventListener('DOMContentLoaded', () => {
       handleYandexLogin();
     });
   }
-});
-
-// Handle OAuth callback for Yandex
-function handleOAuthCallback() {
-  const urlParams = new URLSearchParams(window.location.search);
-  const code = urlParams.get('code');
-  const error = urlParams.get('error');
-  
-  if (error) {
-    console.error('OAuth error:', error);
-    window.opener?.postMessage({
-      type: 'YANDEX_AUTH_ERROR',
-      error: error
-    }, window.location.origin);
-    return;
-  }
-  
-  if (code) {
-    console.log('OAuth code received:', code);
-    
-    // Exchange code for access token
-    fetch('/api/yandex/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        code: code,
-        redirect_uri: YANDEX_CONFIG.redirectUri
-      })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      // Get user info
-      return fetch('/api/yandex/user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          access_token: data.access_token
-        })
-      });
-    })
-    .then(response => response.json())
-    .then(userData => {
-      window.opener?.postMessage({
-        type: 'YANDEX_AUTH_SUCCESS',
-        access_token: userData.access_token,
-        ...userData
-      }, window.location.origin);
-    })
-    .catch(error => {
-      console.error('OAuth token exchange error:', error);
-      window.opener?.postMessage({
-        type: 'YANDEX_AUTH_ERROR',
-        error: error.message
-      }, window.location.origin);
-    });
-  }
 }
 
-// Check if this is an OAuth callback
-if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
-  handleOAuthCallback();
-}
+// OAuth callback handling is now done on the server side
 
 // Export functions for other modules
 window.SocialAuth = {
@@ -331,7 +291,8 @@ window.SocialAuth = {
   handleYandexSuccess,
   handleYandexError,
   showSocialAuthError,
-  registerSocketHandlers
+  registerSocketHandlers,
+  initializeSocialAuth
 };
 
 // Register handlers if Core is already available

@@ -1,0 +1,53 @@
+Core.socket already available, registering handlers immediately
+social-auth.js:181 Registering socket handlers for social auth...
+auth.js:174 Uncaught TypeError: Cannot read properties of null (reading 'addEventListener')
+    at auth.js:174:15
+(anonymous) @ auth.js:174
+core.js:393 Core module initialized
+social-auth.js:208 DOM loaded, initializing social auth...
+social-auth.js:181 Registering socket handlers for social auth...
+social-auth.js:87 Yandex OAuth will be handled via popup window
+chat.js:532 Chat module initialized
+ui.js:499 UI module initialized
+features.js:1461 Features module initialized
+app.js:6 Sontha messenger initializing...
+core.js:393 Core module initialized
+chat.js:532 Chat module initialized
+ui.js:499 UI module initialized
+features.js:1461 Features module initialized
+social-auth.js:19 Initializing Google OAuth...
+social-auth.js:29 Google OAuth initialized successfully
+social-auth.js:250 Yandex login button clicked
+social-auth.js:92 Starting Yandex OAuth flow...
+social-auth.js:108 Yandex auth success: Object
+social-auth.js:134 Yandex authentication successful: Object
+social-auth.js:144 Sending Yandex auth to server: Object
+social-auth.js:127 Yandex auth popup was closed
+social-auth.js:184 Social authentication successful: Objecttoken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyMWU5NTE0NS04NDY5LTQ2M2EtOTE1Zi00MzJkMzE4YWFmNDUiLCJpYXQiOjE3NjA4MTQzODQsImV4cCI6MTc2MTQxOTE4NH0.plnKgkfrkwjEcQrxWGUYzPhOuAhZB2JF3FEiM2zrjRk"user: {id: '21e95145-8469-463a-915f-432d318aaf45', name: 'Mastur Bek', username: 'bekmast', avatarUrl: null, provider: 'yandex'}[[Prototype]]: Object
+social-auth.js:184 Social authentication successful: Objecttoken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIyMWU5NTE0NS04NDY5LTQ2M2EtOTE1Zi00MzJkMzE4YWFmNDUiLCJpYXQiOjE3NjA4MTQzODQsImV4cCI6MTc2MTQxOTE4NH0.plnKgkfrkwjEcQrxWGUYzPhOuAhZB2JF3FEiM2zrjRk"user: {id: '21e95145-8469-463a-915f-432d318aaf45', name: 'Mastur Bek', username: 'bekmast', avatarUrl: null, provider: 'yandex'}[[Prototype]]: Object
+dont work user interface
+#LOGS FOR GOOGLE
+Core.socket already available, registering handlers immediately
+social-auth.js:181 Registering socket handlers for social auth...
+auth.js:174 Uncaught TypeError: Cannot read properties of null (reading 'addEventListener')
+    at auth.js:174:15
+(anonymous) @ auth.js:174
+core.js:393 Core module initialized
+social-auth.js:208 DOM loaded, initializing social auth...
+social-auth.js:181 Registering socket handlers for social auth...
+social-auth.js:87 Yandex OAuth will be handled via popup window
+chat.js:532 Chat module initialized
+ui.js:499 UI module initialized
+features.js:1461 Features module initialized
+app.js:6 Sontha messenger initializing...
+core.js:393 Core module initialized
+chat.js:532 Chat module initialized
+ui.js:499 UI module initialized
+features.js:1461 Features module initialized
+social-auth.js:19 Initializing Google OAuth...
+social-auth.js:29 Google OAuth initialized successfully
+social-auth.js:239 Google login button clicked
+social-auth.js:42 Google OAuth response received: {credential: 'eyJhbGciOiJSUzI1NiIsImtpZCI6ImZiOWY5MzcxZDU3NTVmM2…KVYlCW4Y1Ro9VGLaeQnf1wPHCwt7kyvactRYWXEMnQXLYjdbA', select_by: 'fedcm'}
+social-auth.js:57 Sending Google auth to server: {provider: 'google', userInfo: {…}}
+social-auth.js:184 Social authentication successful: {user: {…}, token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiO…QxOH0.yVuga0YgpkaIfAAuYaN6Vi4TATG5X319mhP1aD6-ncs'}
+social-auth.js:184 Social authentication successful: {user: {…}, token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiO…QxOH0.yVuga0YgpkaIfAAuYaN6Vi4TATG5X319mhP1aD6-ncs'}
