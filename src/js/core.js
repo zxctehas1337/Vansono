@@ -128,6 +128,51 @@ function showChatsList() {
       console.log('Chat layout emergency styles applied');
     }
     
+    // Debug: check all screen states
+    const allScreens = document.querySelectorAll('.screen');
+    console.log('All screens state:');
+    allScreens.forEach(screen => {
+      console.log(`- ${screen.id}: active=${screen.classList.contains('active')}, display=${getComputedStyle(screen).display}, zIndex=${getComputedStyle(screen).zIndex}`);
+    });
+    
+    // Force hide auth screen completely
+    if (authScreen) {
+      authScreen.style.cssText = `
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        z-index: -1 !important;
+      `;
+      console.log('Auth screen forcibly hidden');
+    }
+    
+    // Add a bright test element to see if ANYTHING renders
+    const testDiv = document.createElement('div');
+    testDiv.style.cssText = `
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      width: 100px !important;
+      height: 100px !important;
+      background: #ff0000 !important;
+      z-index: 9999 !important;
+      border: 5px solid #00ff00 !important;
+    `;
+    testDiv.textContent = 'TEST';
+    document.body.appendChild(testDiv);
+    console.log('Red test element added to screen');
+    
+    // Force body styles
+    document.body.style.cssText = `
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ff00ff !important;
+      color: #ffffff !important;
+      font-family: Arial !important;
+    `;
+    console.log('Body emergency styles applied');
+    }
+    
     console.log('Chat elements visibility:', {
       chatContainer: chatContainer ? chatContainer.style.display : 'null',
       emptyState: emptyState ? emptyState.style.display : 'null',
