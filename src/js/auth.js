@@ -25,15 +25,40 @@ const authError = document.getElementById('auth-error');
 
 // ===== CAPTCHA HELPERS =====
 
-function requestCaptcha(forLogin = false) {
-  window.Core.socket.emit('captcha:get');
+// Helper to safely get Core and Core.socket
+function getCoreSocket() {
+  if (
+    typeof window !== "undefined" &&
+    window.Core &&
+    window.Core.socket
+  ) {
+    return window.Core.socket;
+  }
+  return null;
 }
 
-window.Core.socket.on('captcha:question', ({ question }) => {
-  // Always display on both forms so user can switch without missing it
-  if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
-  if (captchaQuestion) captchaQuestion.textContent = question;
-});
+function requestCaptcha(forLogin = false) {
+  const socket = getCoreSocket();
+  if (socket) {
+    socket.emit('captcha:get');
+  } else {
+    // Optional: log or show error for developers
+    console.error('Core.socket not available when requesting captcha');
+  }
+}
+
+const socket = getCoreSocket();
+if (socket) {
+  socket.on('captcha:question', ({ question }) => {
+    // Always display on both forms so user can switch without missing it
+    if (captchaQuestionLogin) captchaQuestionLogin.textContent = question;
+    if (captchaQuestion) captchaQuestion.textContent = question;
+  });
+} else {
+  // We do NOT throw here; if UI loads before socket, handler can be registered later in an init function.
+  // Optional: Add a warning for developers
+  console.warn('Core.socket not available to register captcha:question listener');
+}
 
 if (captchaRefresh) captchaRefresh.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(false); });
 if (captchaRefreshLogin) captchaRefreshLogin.addEventListener('click', (e) => { e.preventDefault(); requestCaptcha(true); });

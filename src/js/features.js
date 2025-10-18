@@ -1182,9 +1182,18 @@ timerOptions.forEach(option => {
   });
 });
 
+// Simple debounce utility (not relying on window.Core)
+function debounce(fn, delay) {
+  let timeout;
+  return function(...args) {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => fn.apply(this, args), delay);
+  };
+}
+
 // Secret user search
 if (secretUserSearch) {
-  secretUserSearch.addEventListener('input', window.Core.debounce((e) => {
+  secretUserSearch.addEventListener('input', debounce((e) => {
     const query = e.target.value.trim();
     if (query.length < 2) {
       secretUserDropdown.innerHTML = '';

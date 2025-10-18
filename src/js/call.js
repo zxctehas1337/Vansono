@@ -98,14 +98,24 @@ async function initiateCall(video) {
 
 // ===== INCOMING CALL HANDLING =====
 
-window.Core.socket.on('call:incoming', (data) => {
-  // Play ringtone for incoming call
-  playNotificationSound('rington');
-  
-  showIncomingCall(data.caller.name, data.callType);
-  window.Core.currentCallData = data;
-  
-});
+// Safely get Core and Core.socket
+function getCoreSocketSafe() {
+  return (window.Core && window.Core.socket) ? window.Core.socket : null;
+}
+
+const safeCoreSocket = getCoreSocketSafe();
+if (safeCoreSocket) {
+  safeCoreSocket.on('call:incoming', (data) => {
+    // Play ringtone for incoming call
+    playNotificationSound('rington');
+
+    showIncomingCall(data.caller.name, data.callType);
+    window.Core.currentCallData = data;
+  });
+} else {
+  // Socket not available yet; optionally log or handle
+  console.warn('Core.socket not available to register call:incoming listener');
+}
 
 function showIncomingCall(callerName, callType) {
   document.getElementById('chat-screen').classList.remove('active');

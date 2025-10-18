@@ -186,7 +186,7 @@ function showChatsList() {
     // Clear current chat user
     currentChatUser = null;
   }
-}
+
 
 
 // Scroll to bottom of messages container

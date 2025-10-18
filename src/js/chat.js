@@ -234,19 +234,30 @@ function generateWaveform() {
 
 // ===== SOCKET EVENT HANDLERS =====
 
-// Display messages history
-window.Core.socket.on('messages:history', (messages) => {
-  document.getElementById('messages-container').innerHTML = '';
-  messages.forEach(msg => displayMessage(msg));
-  window.Core.scrollToBottom();
-});
+function getCoreSocketSafe() {
+  return (window.Core && window.Core.socket) ? window.Core.socket : null;
+}
 
-// Receive new message
-window.Core.socket.on('message:received', (message) => {
-  // Only handle messages from other users to avoid duplication
-  if (message.from === window.Core.currentUser.id) {
-    return; // Skip messages from current user as they're handled by message:sent
-  }
+// Display messages history
+const coreSocket = getCoreSocketSafe();
+if (coreSocket) {
+  coreSocket.on('messages:history', (messages) => {
+    document.getElementById('messages-container').innerHTML = '';
+    messages.forEach(msg => displayMessage(msg));
+    window.Core.scrollToBottom();
+  });
+
+  // Receive new message
+  coreSocket.on('message:received', (message) => {
+    // Only handle messages from other users to avoid duplication
+    if (message.from === (window.Core && window.Core.currentUser ? window.Core.currentUser.id : null)) {
+      return; // Skip messages from current user as they're handled by message:sent
+    }
+  });
+} else {
+  // Socket not available, optionally log for debugging
+  console.warn('Core.socket not available for registering chat event listeners');
+}
   
   if (window.Core.currentChatUser && message.from === window.Core.currentChatUser.id) {
     displayMessage(message);
@@ -269,7 +280,6 @@ window.Core.socket.on('message:received', (message) => {
       window.Call.playNotificationSound('notification');
     }
   }
-});
 
 // Message sent confirmation
 window.Core.socket.on('message:sent', (message) => {
