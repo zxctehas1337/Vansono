@@ -4,70 +4,103 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VK ID Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .debug-info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+        .widget-container { border: 2px solid #ccc; padding: 20px; margin: 20px 0; }
+    </style>
 </head>
 <body>
     <h1>VK ID Configuration Debug</h1>
-    <div id="debug-info"></div>
-    <div id="vk-auth-widget"></div>
+    <div class="debug-info" id="debug-info"></div>
     
-    <script src="https://unpkg.com/@vkid/sdk@<3.0.0/dist-sdk/umd/index.js"></script>
+    <h2>VK ID Widget:</h2>
+    <div class="widget-container" id="vk-auth-widget"></div>
+    
+    <h2>Test Buttons:</h2>
+    <button onclick="testVKID()">Test VK ID Initialization</button>
+    <button onclick="checkWidget()">Check Widget Status</button>
+    
+    <script src="https://unpkg.com/@vkid/sdk@latest/dist-sdk/umd/index.js"></script>
     <script>
         const debugInfo = document.getElementById('debug-info');
         
         function log(message) {
             console.log(message);
-            debugInfo.innerHTML += '<p>' + message + '</p>';
+            debugInfo.innerHTML += '<p>' + new Date().toLocaleTimeString() + ': ' + message + '</p>';
         }
         
         log('Current URL: ' + window.location.href);
         log('Origin: ' + window.location.origin);
         log('VK ID SDK loaded: ' + ('VKIDSDK' in window));
         
-        if ('VKIDSDK' in window) {
-            const VKID = window.VKIDSDK;
-            
-            const config = {
-                app: 54249385,
-                redirectUrl: window.location.origin,
-                responseMode: VKID.ConfigResponseMode.Popup,
-                source: VKID.ConfigSource.LOWCODE,
-                scope: ''
-            };
-            
-            log('Config: ' + JSON.stringify(config, null, 2));
-            
-            try {
-                VKID.Config.init(config);
-                log('VK ID Config initialized successfully');
+        let oneTap = null;
+        
+        function testVKID() {
+            if ('VKIDSDK' in window) {
+                const VKID = window.VKIDSDK;
                 
-                const oneTap = new VKID.OneTap();
+                const config = {
+                    app: 54249385,
+                    redirectUrl: window.location.origin,
+                    responseMode: VKID.ConfigResponseMode.Popup,
+                    source: VKID.ConfigSource.LOWCODE,
+                    scope: ''
+                };
                 
-                oneTap.render({
-                    container: document.getElementById('vk-auth-widget'),
-                    scheme: 'dark',
-                    showAlternativeLogin: true,
-                    styles: {
-                        borderRadius: 50,
-                        width: 415
-                    },
-                    oauthList: [
-                        'mail_ru',
-                        'ok_ru'
-                    ]
-                })
-                .on(VKID.WidgetEvents.ERROR, function(error) {
-                    log('VK ID Error: ' + JSON.stringify(error, null, 2));
-                })
-                .on(VKID.WidgetEvents.LOGIN_SUCCESS, function(payload) {
-                    log('VK ID Login Success: ' + JSON.stringify(payload, null, 2));
-                });
+                log('Config: ' + JSON.stringify(config, null, 2));
                 
-                log('VK ID Widget rendered');
-                
-            } catch (error) {
-                log('VK ID Error: ' + error.message);
+                try {
+                    VKID.Config.init(config);
+                    log('VK ID Config initialized successfully');
+                    
+                    oneTap = new VKID.OneTap();
+                    
+                    oneTap.render({
+                        container: document.getElementById('vk-auth-widget'),
+                        scheme: 'dark',
+                        showAlternativeLogin: true,
+                        styles: {
+                            borderRadius: 50,
+                            width: 415
+                        },
+                        oauthList: [
+                            'mail_ru',
+                            'ok_ru'
+                        ]
+                    })
+                    .on(VKID.WidgetEvents.ERROR, function(error) {
+                        log('VK ID Error: ' + JSON.stringify(error, null, 2));
+                    })
+                    .on(VKID.WidgetEvents.LOGIN_SUCCESS, function(payload) {
+                        log('VK ID Login Success: ' + JSON.stringify(payload, null, 2));
+                    })
+                    .on(VKID.WidgetEvents.LOGIN_FAILED, function(error) {
+                        log('VK ID Login Failed: ' + JSON.stringify(error, null, 2));
+                    })
+                    .on(VKID.WidgetEvents.READY, function() {
+                        log('VK ID Widget is ready');
+                    });
+                    
+                    log('VK ID Widget rendered');
+                    
+                } catch (error) {
+                    log('VK ID Error: ' + error.message);
+                }
+            } else {
+                log('VK ID SDK not loaded');
             }
         }
+        
+        function checkWidget() {
+            const widget = document.getElementById('vk-auth-widget');
+            log('Widget has children: ' + widget.hasChildNodes());
+            log('Widget innerHTML length: ' + widget.innerHTML.length);
+            log('Widget innerHTML: ' + widget.innerHTML.substring(0, 200) + '...');
+        }
+        
+        // Auto-initialize after 2 seconds
+        setTimeout(testVKID, 2000);
     </script>
 </body>
 </html>
