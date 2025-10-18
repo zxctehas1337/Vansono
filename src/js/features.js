@@ -890,12 +890,500 @@ if (cancelChannelBtn) {
   });
 }
 
+// ===== CHANNELS FUNCTIONALITY =====
+
+// Channel creation
+const channelNameInput = document.getElementById('channel-name');
+const channelDescriptionInput = document.getElementById('channel-description');
+const createChannelConfirmBtn = document.getElementById('create-channel-confirm-btn');
+
+if (createChannelConfirmBtn) {
+  createChannelConfirmBtn.addEventListener('click', () => {
+    createChannel();
+  });
+}
+
+function createChannel() {
+  if (!window.Core.currentUser) {
+    window.Core.showNotification('Please log in first', 'error');
+    return;
+  }
+  
+  const name = channelNameInput ? channelNameInput.value.trim() : '';
+  const description = channelDescriptionInput ? channelDescriptionInput.value.trim() : '';
+
+  if (!name) {
+    window.Core.showNotification('Please enter a channel name', 'error');
+    return;
+  }
+
+  const channel = {
+    id: `channel_${Date.now()}`,
+    name: name,
+    description: description,
+    type: 'channel',
+    isChannel: true,
+    creator: window.Core.currentUser.id,
+    creatorName: window.Core.currentUser.name,
+    members: [window.Core.currentUser.id],
+    created: Date.now()
+  };
+
+  // Save channel to localStorage
+  const channels = JSON.parse(localStorage.getItem('channels') || '[]');
+  channels.push(channel);
+  localStorage.setItem('channels', JSON.stringify(channels));
+
+  // Add channel to chats list
+  addChannelToChatsList(channel);
+
+  // Close modal
+  const channelModal = document.getElementById('create-channel-modal');
+  if (channelModal) channelModal.classList.remove('active');
+
+  // Reset form
+  if (channelNameInput) channelNameInput.value = '';
+  if (channelDescriptionInput) channelDescriptionInput.value = '';
+
+  window.Core.showNotification('Channel created successfully', 'success');
+}
+
+// Add channel to chats list
+function addChannelToChatsList(channel) {
+  const chatsList = document.getElementById('chats-list');
+  if (!chatsList) return;
+
+  const channelItem = document.createElement('div');
+  channelItem.className = 'chat-item';
+  channelItem.dataset.channelId = channel.id;
+
+  channelItem.innerHTML = `
+    <div style="position: relative;">
+      <div class="avatar" style="width: 48px; height: 48px; font-size: 18px; background: linear-gradient(135deg, #667eea, #764ba2);">
+        #
+      </div>
+    </div>
+    <div class="chat-item-info">
+      <div class="chat-item-header">
+        <span class="chat-item-name">${channel.name}</span>
+        <span class="chat-item-time">now</span>
+      </div>
+      <div class="chat-item-preview">Channel • ${channel.members.length} members</div>
+    </div>
+  `;
+
+  channelItem.addEventListener('click', () => openChannelChat(channel));
+  chatsList.appendChild(channelItem);
+}
+
+// Open channel chat
+function openChannelChat(channel) {
+  window.Core.currentChatUser = channel;
+  
+  // Update active state
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  document.querySelector(`[data-channel-id="${channel.id}"]`)?.classList.add('active');
+
+  // Show chat container
+  const emptyState = document.getElementById('empty-state');
+  const chatContainer = document.getElementById('chat-container');
+  if (emptyState) emptyState.style.display = 'none';
+  if (chatContainer) chatContainer.style.display = 'flex';
+
+  // Update chat header
+  const chatName = document.getElementById('chat-name');
+  const chatAvatar = document.getElementById('chat-avatar');
+  const chatStatus = document.getElementById('chat-status');
+  
+  if (chatName) chatName.textContent = channel.name;
+  if (chatAvatar) {
+    chatAvatar.textContent = '#';
+    chatAvatar.style.background = 'linear-gradient(135deg, #667eea, #764ba2)';
+  }
+  if (chatStatus) {
+    chatStatus.textContent = `Channel • ${channel.members.length} members`;
+    chatStatus.style.color = 'var(--text-tertiary)';
+  }
+
+  // Load channel messages
+  const messagesContainer = document.getElementById('messages-container');
+  if (messagesContainer) {
+    messagesContainer.innerHTML = '';
+    loadChannelMessages(channel.id);
+  }
+}
+
+// Load channel messages
+function loadChannelMessages(channelId) {
+  const messages = JSON.parse(localStorage.getItem(`channelMessages_${channelId}`) || '[]');
+  messages.forEach(message => displayChannelMessage(message, channelId));
+  window.Core.scrollToBottom();
+}
+
+// Display channel message
+function displayChannelMessage(message, channelId) {
+  const messagesContainer = document.getElementById('messages-container');
+  if (!messagesContainer) return;
+
+  const messageEl = document.createElement('div');
+  messageEl.className = `message ${message.from === window.Core.currentUser.id ? 'sent' : ''}`;
+
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  messageEl.innerHTML = `
+    <div class="message-avatar">${message.sender.charAt(0).toUpperCase()}</div>
+    <div class="message-content">
+      <div class="message-text">${window.Core.escapeHtml(message.text)}</div>
+      <div class="message-meta">
+        <div class="message-sender">${message.sender}</div>
+        <div class="message-time">${time}</div>
+      </div>
+    </div>
+  `;
+
+  messagesContainer.appendChild(messageEl);
+}
+
+// Send channel message
+function sendChannelMessage() {
+  const text = document.getElementById('message-input').value.trim();
+  
+  if (!text || !window.Core.currentChatUser || !window.Core.currentChatUser.isChannel) return;
+
+  const message = {
+    id: Date.now().toString(),
+    from: window.Core.currentUser.id,
+    sender: window.Core.currentUser.name,
+    text: text,
+    timestamp: Date.now(),
+    channelId: window.Core.currentChatUser.id
+  };
+
+  // Save to localStorage
+  const messages = JSON.parse(localStorage.getItem(`channelMessages_${window.Core.currentChatUser.id}`) || '[]');
+  messages.push(message);
+  localStorage.setItem(`channelMessages_${window.Core.currentChatUser.id}`, JSON.stringify(messages));
+
+  displayChannelMessage(message, window.Core.currentChatUser.id);
+  document.getElementById('message-input').value = '';
+  window.Core.scrollToBottom();
+}
+
+// ===== SECRET CHATS FUNCTIONALITY =====
+
+// Secret chat creation
+const secretUserSearch = document.getElementById('secret-user-search');
+const secretUserDropdown = document.getElementById('secret-user-dropdown');
+const createSecretBtn = document.getElementById('create-secret-btn');
+let selectedSecretUser = null;
+let selectedTimer = 0;
+
+if (createSecretBtn) {
+  createSecretBtn.addEventListener('click', () => {
+    createSecretChat();
+  });
+}
+
+// Timer option selection
+const timerOptions = document.querySelectorAll('.timer-option');
+timerOptions.forEach(option => {
+  option.addEventListener('click', () => {
+    // Remove active class from all options
+    timerOptions.forEach(opt => opt.classList.remove('active'));
+    // Add active class to selected option
+    option.classList.add('active');
+    selectedTimer = parseInt(option.dataset.timer);
+  });
+});
+
+// Secret user search
+if (secretUserSearch) {
+  secretUserSearch.addEventListener('input', window.Core.debounce((e) => {
+    const query = e.target.value.trim();
+    if (query.length < 2) {
+      secretUserDropdown.innerHTML = '';
+      return;
+    }
+    
+    // Search users via socket or use stored users
+    if (window.Core.socket && window.Core.socket.connected) {
+      window.Core.socket.emit('search_users', query);
+    } else {
+      // Use stored users as fallback
+      const users = JSON.parse(localStorage.getItem('users') || '[]');
+      const filteredUsers = users.filter(user => {
+        if (!user || !user.id || !user.name) return false;
+        // Don't include current user
+        if (window.Core.currentUser && user.id === window.Core.currentUser.id) return false;
+        return user.name.toLowerCase().includes(query.toLowerCase()) || 
+               (user.username && user.username.toLowerCase().includes(query.toLowerCase()));
+      });
+      
+      displaySecretUserResults(filteredUsers);
+    }
+  }, 300));
+}
+
+// Listen for user search results for secret chat
+if (window.Core.socket) {
+  window.Core.socket.on('search_results', (users) => {
+    // Only update if we're currently searching for secret chat users
+    if (secretUserSearch && secretUserSearch === document.activeElement) {
+      displaySecretUserResults(users);
+    }
+  });
+}
+
+// Display secret user search results
+function displaySecretUserResults(users) {
+  if (!secretUserDropdown) return;
+  
+  const filteredUsers = users.filter(user => {
+    if (!user || !user.id || !user.name) return false;
+    // Don't include current user
+    if (window.Core.currentUser && user.id === window.Core.currentUser.id) return false;
+    return true;
+  });
+  
+  secretUserDropdown.innerHTML = filteredUsers.map(user => `
+    <div class="user-option" data-user-id="${user.id}" data-user-name="${user.name}" data-username="${user.username || '@unknown'}">
+      <div class="avatar">${user.name.charAt(0)}</div>
+      <div class="user-info">
+        <div class="user-name">${user.name}</div>
+        <div class="username">${user.username || '@unknown'}</div>
+      </div>
+    </div>
+  `).join('');
+  
+  // Add click handlers
+  document.querySelectorAll('.user-option').forEach(option => {
+    option.addEventListener('click', () => {
+      selectedSecretUser = {
+        id: option.dataset.userId,
+        name: option.dataset.userName,
+        username: option.dataset.username
+      };
+      secretUserSearch.value = selectedSecretUser.name;
+      secretUserDropdown.innerHTML = '';
+    });
+  });
+}
+
+function createSecretChat() {
+  if (!window.Core.currentUser) {
+    window.Core.showNotification('Please log in first', 'error');
+    return;
+  }
+  
+  if (!selectedSecretUser) {
+    window.Core.showNotification('Please select a user', 'error');
+    return;
+  }
+
+  const secretChat = {
+    id: `secret_${Date.now()}`,
+    name: `🔒 ${selectedSecretUser.name}`,
+    type: 'secret',
+    isSecret: true,
+    user: selectedSecretUser,
+    creator: window.Core.currentUser.id,
+    timer: selectedTimer,
+    created: Date.now()
+  };
+
+  // Save secret chat to localStorage
+  const secretChats = JSON.parse(localStorage.getItem('secretChats') || '[]');
+  secretChats.push(secretChat);
+  localStorage.setItem('secretChats', JSON.stringify(secretChats));
+
+  // Add secret chat to chats list
+  addSecretChatToChatsList(secretChat);
+
+  // Close modal
+  const secretModal = document.getElementById('secret-chat-modal');
+  if (secretModal) secretModal.classList.remove('active');
+
+  // Reset form
+  if (secretUserSearch) secretUserSearch.value = '';
+  selectedSecretUser = null;
+  selectedTimer = 0;
+  timerOptions.forEach(opt => opt.classList.remove('active'));
+
+  window.Core.showNotification('Secret chat created successfully', 'success');
+}
+
+// Add secret chat to chats list
+function addSecretChatToChatsList(secretChat) {
+  const chatsList = document.getElementById('chats-list');
+  if (!chatsList) return;
+
+  const secretItem = document.createElement('div');
+  secretItem.className = 'chat-item';
+  secretItem.dataset.secretId = secretChat.id;
+
+  secretItem.innerHTML = `
+    <div style="position: relative;">
+      <div class="avatar" style="width: 48px; height: 48px; font-size: 18px; background: linear-gradient(135deg, #8B5CF6, #EC4899);">
+        🔒
+      </div>
+    </div>
+    <div class="chat-item-info">
+      <div class="chat-item-header">
+        <span class="chat-item-name">${secretChat.name}</span>
+        <span class="chat-item-time">now</span>
+      </div>
+      <div class="chat-item-preview">Secret chat • Timer: ${formatTimer(secretChat.timer)}</div>
+    </div>
+  `;
+
+  secretItem.addEventListener('click', () => openSecretChat(secretChat));
+  chatsList.appendChild(secretItem);
+}
+
+// Format timer display
+function formatTimer(seconds) {
+  if (seconds === 0) return 'No timer';
+  if (seconds < 3600) return `${seconds / 60}m`;
+  if (seconds < 86400) return `${seconds / 3600}h`;
+  return `${seconds / 86400}d`;
+}
+
+// Open secret chat
+function openSecretChat(secretChat) {
+  window.Core.currentChatUser = secretChat;
+  
+  // Update active state
+  document.querySelectorAll('.chat-item').forEach(item => {
+    item.classList.remove('active');
+  });
+  document.querySelector(`[data-secret-id="${secretChat.id}"]`)?.classList.add('active');
+
+  // Show chat container
+  const emptyState = document.getElementById('empty-state');
+  const chatContainer = document.getElementById('chat-container');
+  if (emptyState) emptyState.style.display = 'none';
+  if (chatContainer) chatContainer.style.display = 'flex';
+
+  // Update chat header
+  const chatName = document.getElementById('chat-name');
+  const chatAvatar = document.getElementById('chat-avatar');
+  const chatStatus = document.getElementById('chat-status');
+  
+  if (chatName) chatName.textContent = secretChat.name;
+  if (chatAvatar) {
+    chatAvatar.textContent = '🔒';
+    chatAvatar.style.background = 'linear-gradient(135deg, #8B5CF6, #EC4899)';
+  }
+  if (chatStatus) {
+    chatStatus.textContent = `Secret chat • Timer: ${formatTimer(secretChat.timer)}`;
+    chatStatus.style.color = 'var(--accent)';
+  }
+
+  // Load secret chat messages
+  const messagesContainer = document.getElementById('messages-container');
+  if (messagesContainer) {
+    messagesContainer.innerHTML = '';
+    loadSecretMessages(secretChat.id);
+  }
+}
+
+// Load secret messages
+function loadSecretMessages(secretId) {
+  const messages = JSON.parse(localStorage.getItem(`secretMessages_${secretId}`) || '[]');
+  const currentTime = Date.now();
+  
+  // Filter out expired messages
+  const validMessages = messages.filter(message => {
+    const secretChat = JSON.parse(localStorage.getItem('secretChats') || '[]')
+      .find(chat => chat.id === secretId);
+    if (!secretChat || secretChat.timer === 0) return true;
+    return (currentTime - message.timestamp) < (secretChat.timer * 1000);
+  });
+  
+  // Save filtered messages back
+  localStorage.setItem(`secretMessages_${secretId}`, JSON.stringify(validMessages));
+  
+  validMessages.forEach(message => displaySecretMessage(message, secretId));
+  window.Core.scrollToBottom();
+}
+
+// Display secret message
+function displaySecretMessage(message, secretId) {
+  const messagesContainer = document.getElementById('messages-container');
+  if (!messagesContainer) return;
+
+  const messageEl = document.createElement('div');
+  messageEl.className = `message ${message.from === window.Core.currentUser.id ? 'sent' : ''}`;
+
+  const time = new Date(message.timestamp).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  messageEl.innerHTML = `
+    <div class="message-avatar">🔒</div>
+    <div class="message-content">
+      <div class="message-text">${window.Core.escapeHtml(message.text)}</div>
+      <div class="message-meta">
+        <div class="message-time">${time}</div>
+        <div class="secret-indicator">🔒 Encrypted</div>
+      </div>
+    </div>
+  `;
+
+  messagesContainer.appendChild(messageEl);
+}
+
+// Send secret message
+function sendSecretMessage() {
+  const text = document.getElementById('message-input').value.trim();
+  
+  if (!text || !window.Core.currentChatUser || !window.Core.currentChatUser.isSecret) return;
+
+  const message = {
+    id: Date.now().toString(),
+    from: window.Core.currentUser.id,
+    sender: window.Core.currentUser.name,
+    text: text,
+    timestamp: Date.now(),
+    secretId: window.Core.currentChatUser.id,
+    encrypted: true
+  };
+
+  // Save to localStorage
+  const messages = JSON.parse(localStorage.getItem(`secretMessages_${window.Core.currentChatUser.id}`) || '[]');
+  messages.push(message);
+  localStorage.setItem(`secretMessages_${window.Core.currentChatUser.id}`, JSON.stringify(messages));
+
+  displaySecretMessage(message, window.Core.currentChatUser.id);
+  document.getElementById('message-input').value = '';
+  window.Core.scrollToBottom();
+}
+
 // ===== INITIALIZATION =====
 
 function initializeFeatures() {
   initializeGroupChats();
   initializeVoiceMessages();
+  loadStoredChannels();
+  loadStoredSecretChats();
   console.log('Features module initialized');
+}
+
+// Load stored channels and secret chats on startup
+function loadStoredChannels() {
+  const channels = JSON.parse(localStorage.getItem('channels') || '[]');
+  channels.forEach(channel => addChannelToChatsList(channel));
+}
+
+function loadStoredSecretChats() {
+  const secretChats = JSON.parse(localStorage.getItem('secretChats') || '[]');
+  secretChats.forEach(secretChat => addSecretChatToChatsList(secretChat));
 }
 
 // Export functions for other modules
@@ -905,6 +1393,12 @@ window.Features = {
   createGroup,
   openGroupChat,
   sendGroupMessage,
+  createChannel,
+  openChannelChat,
+  sendChannelMessage,
+  createSecretChat,
+  openSecretChat,
+  sendSecretMessage,
   startVoiceRecording,
   stopVoiceRecording,
   cancelVoiceRecording,

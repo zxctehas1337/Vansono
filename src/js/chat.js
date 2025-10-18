@@ -11,12 +11,37 @@ const videoCallBtn = document.getElementById('video-call-btn');
 function sendMessage() {
   const text = document.getElementById('message-input').value.trim();
   
-  if (!text || !window.Core.currentChatUser) return;
+  if (!text || !window.Core.currentChatUser || !window.Core.currentUser) return;
 
-  window.Core.socket.emit('message:send', {
-    to: window.Core.currentChatUser.id,
-    text
-  });
+  // Check if current user is null (which was the root issue)
+  if (!window.Core.currentUser) {
+    window.Core.showNotification('Please log in first', 'error');
+    return;
+  }
+
+  // Handle different chat types
+  if (window.Core.currentChatUser.isGroup) {
+    // Group message
+    if (window.Features && window.Features.sendGroupMessage) {
+      return window.Features.sendGroupMessage();
+    }
+  } else if (window.Core.currentChatUser.isChannel) {
+    // Channel message
+    if (window.Features && window.Features.sendChannelMessage) {
+      return window.Features.sendChannelMessage();
+    }
+  } else if (window.Core.currentChatUser.isSecret) {
+    // Secret chat message
+    if (window.Features && window.Features.sendSecretMessage) {
+      return window.Features.sendSecretMessage();
+    }
+  } else {
+    // Regular private message
+    window.Core.socket.emit('message:send', {
+      to: window.Core.currentChatUser.id,
+      text
+    });
+  }
 
   document.getElementById('message-input').value = '';
 }

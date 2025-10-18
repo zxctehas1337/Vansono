@@ -242,7 +242,14 @@ function updateUsersList(users) {
     return;
   }
   
-  chatsList.innerHTML = users.filter(user => user && user.id && user.name).map(user => `
+  // Filter out current user and invalid users
+  const filteredUsers = users.filter(user => {
+    if (!user || !user.id || !user.name) return false;
+    if (currentUser && user.id === currentUser.id) return false;
+    return true;
+  });
+  
+  chatsList.innerHTML = filteredUsers.map(user => `
     <div class="chat-item" data-user-id="${user.id}">
       <div class="avatar">${user.name.charAt(0)}</div>
       <div class="chat-item-info">
@@ -331,14 +338,22 @@ function initializeCore() {
 // Export functions for other modules
 window.Core = {
   socket,
-  currentUser,
-  currentChatUser,
-  peer,
-  localStream,
-  currentCallData,
-  callStartTime,
-  callEndTime,
-  callDuration,
+  get currentUser() { return currentUser; },
+  set currentUser(value) { currentUser = value; },
+  get currentChatUser() { return currentChatUser; },
+  set currentChatUser(value) { currentChatUser = value; },
+  get peer() { return peer; },
+  set peer(value) { peer = value; },
+  get localStream() { return localStream; },
+  set localStream(value) { localStream = value; },
+  get currentCallData() { return currentCallData; },
+  set currentCallData(value) { currentCallData = value; },
+  get callStartTime() { return callStartTime; },
+  set callStartTime(value) { callStartTime = value; },
+  get callEndTime() { return callEndTime; },
+  set callEndTime(value) { callEndTime = value; },
+  get callDuration() { return callDuration; },
+  set callDuration(value) { callDuration = value; },
   scrollToBottom,
   escapeHtml,
   formatDuration,
