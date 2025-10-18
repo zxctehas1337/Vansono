@@ -535,6 +535,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Get users list
+  socket.on('users:get', () => {
+    console.log('Received users:get request');
+    const userList = Array.from(users.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      username: u.username,
+      online: Array.from(onlineUsers.values()).includes(u.id)
+    }));
+    socket.emit('users:list', userList);
+  });
+  
   // Поиск пользователей (из базы данных)
   socket.on('search_users', async (query) => {
     const q = String(query || '').trim().toLowerCase();

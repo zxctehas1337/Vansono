@@ -137,9 +137,8 @@ function handleChats() {
     return;
   }
   
-  // Show chat screen with empty state
+  // Show chat screen - Core.initializeChat() will handle content
   showChatScreen();
-  clearCurrentChat();
 }
 
 function handleChatWithUser(params) {
@@ -164,12 +163,11 @@ function showAuthScreen() {
   
   if (authScreen) {
     authScreen.classList.add('active');
-    authScreen.style.display = 'flex';
+    // Don't override display - let CSS handle it via .active class
   }
   
   if (chatScreen) {
     chatScreen.classList.remove('active');
-    chatScreen.style.display = 'none';
   }
 }
 
@@ -180,12 +178,15 @@ function showChatScreen() {
   
   if (authScreen) {
     authScreen.classList.remove('active');
-    authScreen.style.display = 'none';
   }
   
   if (chatScreen) {
     chatScreen.classList.add('active');
-    chatScreen.style.display = 'flex';
+    // Ensure layout is properly displayed
+    const layout = chatScreen.querySelector('.chat-layout');
+    if (layout) {
+      layout.style.display = 'flex';
+    }
   }
 }
 
