@@ -38,6 +38,7 @@ if [ "$auto_push" = true ]; then
 fi
 
 # Очистка экрана
+clear
 
 # Сброс цвета
 echo -e "\e[0m"

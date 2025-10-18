@@ -39,6 +39,46 @@ const chatStatus = document.getElementById('chat-status');
 
 // ===== UTILITY FUNCTIONS =====
 
+// Handle URL routing
+function handleRouting() {
+  const path = window.location.pathname;
+  
+  if (path === '/chats' || path === '/') {
+    // Show chats list
+    showChatsList();
+  } else if (path.startsWith('/chat/')) {
+    const userId = path.split('/chat/')[1];
+    if (userId && currentUser) {
+      // Find user and open chat
+      const user = Array.from(window.Core.users || []).find(u => u.id === userId);
+      if (user) {
+        openChat(user);
+      } else {
+        // User not found, redirect to chats
+        window.history.pushState({}, '', '/chats');
+        showChatsList();
+      }
+    }
+  }
+}
+
+// Show chats list
+function showChatsList() {
+  if (chatScreen && chatScreen.classList.contains('active')) {
+    // Hide any open chat
+    chatContainer.style.display = 'none';
+    emptyState.style.display = 'block';
+    chatsList.style.display = 'block';
+    
+    // Update URL
+    window.history.pushState({}, '', '/chats');
+    
+    // Clear current chat user
+    currentChatUser = null;
+  }
+}
+
+
 // Scroll to bottom of messages container
 function scrollToBottom() {
   const messagesContainer = document.getElementById('messages-container');
@@ -170,6 +210,9 @@ function initializeChat() {
   } else {
     console.warn('No current user available for display');
   }
+  
+  // Handle routing after authentication
+  handleRouting();
 }
 
 // ===== SOCKET EVENT HANDLERS =====
@@ -288,6 +331,9 @@ function openChat(user) {
   chatStatus.textContent = user.online ? 'Online' : 'Offline';
   chatStatus.style.color = user.online ? 'var(--success)' : 'var(--text-tertiary)';
 
+  // Update URL
+  window.history.pushState({}, '', `/chat/${user.id}`);
+
   // Load messages
   messagesContainer.innerHTML = '';
   socket.emit('messages:get', { userId: user.id });
@@ -329,6 +375,18 @@ function initializeCore() {
     }, 300));
   }
 
+  // Setup routing
+  handleRouting();
+  
+  // Handle browser back/forward buttons
+  window.addEventListener('popstate', handleRouting);
+  
+  // Setup back button in chat
+  const backBtn = document.getElementById('back-btn');
+  if (backBtn) {
+    backBtn.addEventListener('click', showChatsList);
+  }
+
   // Request notification permission
   requestNotificationPermission();
   
@@ -363,6 +421,8 @@ window.Core = {
   updateUserDisplay,
   initializeChat,
   openChat,
+  showChatsList,
+  handleRouting,
   showDesktopNotification,
   initializeCore
 };

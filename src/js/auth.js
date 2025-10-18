@@ -56,7 +56,8 @@ function switchForm(hideForm, showForm) {
 // Registration is now handled by social auth only
 
 // Login (username + password + captcha)
-loginBtn.addEventListener('click', () => {
+if (loginBtn) {
+  loginBtn.addEventListener('click', () => {
   let username = loginUsername.value.trim();
   const password = loginPassword.value.trim();
   const captchaAnswer = loginCaptcha.value.trim();
@@ -73,7 +74,8 @@ loginBtn.addEventListener('click', () => {
   }
 
   window.Core.socket.emit('login', { username, password, captchaAnswer });
-});
+  });
+}
 
 // Persist token and auto-login
 window.Core.socket.on('login:success', (data) => {

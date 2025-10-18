@@ -4,13 +4,13 @@
 // Google OAuth Configuration
 const GOOGLE_CONFIG = {
   clientId: '260775726499-60afbdiha77eig1qsphoktihdhe99f14.apps.googleusercontent.com', // Замените на ваш Google Client ID из config.env
-  redirectUri: window.location.origin
+  redirectUri: window.location.origin + '/chats'
 };
 
 // Yandex OAuth Configuration
 const YANDEX_CONFIG = {
   clientId: '8217fc55c26e4c35bf819d35f47072a3', // Замените на ваш Yandex Client ID из config.env
-  redirectUri: window.location.origin
+  redirectUri: window.location.origin + '/chats'
 };
 
 // Initialize Google OAuth

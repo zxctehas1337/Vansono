@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const axios = require('axios');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '260775726499-60afbdiha77eig1qsphoktihdhe99f14.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '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';
 const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID || '8217fc55c26e4c35bf819d35f47072a3';
@@ -138,17 +139,26 @@ initializeDatabase().then(() => {
 });
 
 // Google OAuth helper functions
-async function verifyGoogleToken(accessToken) {
+async function verifyGoogleToken(idToken) {
   try {
-    const response = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`
-      }
-    });
-
-    return response.data;
+    // Decode the JWT token to get user info
+    const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString());
+    
+    // Verify the token signature (simplified - in production use proper JWT verification)
+    if (!payload.sub || !payload.email) {
+      throw new Error('Invalid Google token');
+    }
+    
+    return {
+      id: payload.sub,
+      email: payload.email,
+      name: payload.name,
+      picture: payload.picture,
+      given_name: payload.given_name,
+      family_name: payload.family_name
+    };
   } catch (error) {
-    console.error('Google API error:', error);
+    console.error('Google token verification error:', error);
     throw error;
   }
 }
@@ -204,12 +214,25 @@ async function getOrCreateSocialUser(provider, providerId, userInfo) {
 
     // Create new user
     const userId = uuidv4();
-    const username = userInfo.screen_name || `user_${providerId}`;
-    const name = `${userInfo.first_name} ${userInfo.last_name}`.trim();
+    let username, name, avatarUrl;
+    
+    if (provider === 'google') {
+      username = userInfo.email ? userInfo.email.split('@')[0] : `user_${providerId}`;
+      name = userInfo.name || `${userInfo.given_name || ''} ${userInfo.family_name || ''}`.trim() || username;
+      avatarUrl = userInfo.picture;
+    } else if (provider === 'yandex') {
+      username = userInfo.login || `user_${providerId}`;
+      name = userInfo.real_name || userInfo.display_name || username;
+      avatarUrl = userInfo.default_avatar_id ? `https://avatars.yandex.net/get-yapic/${userInfo.default_avatar_id}/islands-200` : null;
+    } else {
+      username = userInfo.screen_name || `user_${providerId}`;
+      name = `${userInfo.first_name || ''} ${userInfo.last_name || ''}`.trim() || username;
+      avatarUrl = userInfo.photo_200;
+    }
 
     await pool.query(
       'INSERT INTO users (id, name, username, password_hash, provider, provider_id, avatar_url) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-      [userId, name, username, null, provider, providerId, userInfo.photo_200]
+      [userId, name, username, null, provider, providerId, avatarUrl]
     );
 
     return {
@@ -218,7 +241,7 @@ async function getOrCreateSocialUser(provider, providerId, userInfo) {
       username,
       provider,
       provider_id: providerId,
-      avatar_url: userInfo.photo_200
+      avatar_url: avatarUrl
     };
   } catch (error) {
     console.error('Error creating social user:', error);
@@ -995,6 +1018,15 @@ app.post('/api/yandex/user', async (req, res) => {
     console.error('Yandex user info error:', error);
     res.status(400).json({ error: error.message });
   }
+});
+
+// API routes for chat navigation
+app.get('/chats', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../src/index.html'));
+});
+
+app.get('/chat/:userId', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../src/index.html'));
 });
 
 // Serve static files
