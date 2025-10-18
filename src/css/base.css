@@ -313,3 +313,9 @@ body {
     padding: 12px 20px;
   }
 }
+yandex-logo {
+  width: 32px;
+  height: 32px;
+  vertical-align: middle;
+  margin-right: 16px;
+}

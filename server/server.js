@@ -9,10 +9,10 @@ const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
 const axios = require('axios');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cat909';
-const VK_SECURITY_KEY = process.env.SECUTIRY_KEY || 'z0ZOVq5O9qoaDPbp0hUj';
-const VK_SERVICE_KEY = process.env.SERVICE_KEY || 'e4c95c50e4c95c50e4c95c50eee7f29bf9ee4c9e4c95508c3a95cf1529b25dcc145eec';
-const VK_APP_ID = process.env.ID || '54249385';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '260775726499-60afbdiha77eig1qsphoktihdhe99f14.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || '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';
+const YANDEX_CLIENT_ID = process.env.YANDEX_CLIENT_ID || '8217fc55c26e4c35bf819d35f47072a3';
+const YANDEX_CLIENT_SECRET = process.env.YANDEX_CLIENT_SECRET || 'a191e38d1bc44f53bb3140a3c2ad5542';
 
 const app = express();
 const server = http.createServer(app);
@@ -137,51 +137,55 @@ initializeDatabase().then(() => {
   loadUsersFromDatabase();
 });
 
-// VK API helper functions
-async function verifyVKToken(accessToken) {
+// Google OAuth helper functions
+async function verifyGoogleToken(accessToken) {
   try {
-    const response = await axios.get('https://api.vk.com/method/users.get', {
-      params: {
-        access_token: accessToken,
-        fields: 'id,first_name,last_name,screen_name,photo_200',
-        v: '5.131'
+    const response = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
       }
     });
 
-    if (response.data.error) {
-      // Специальная обработка ошибки IP-адреса
-      if (response.data.error.error_code === 27) {
-        throw new Error('VK token is invalid for this server IP. Please try again.');
-      }
-      throw new Error(response.data.error.error_msg);
-    }
-
-    return response.data.response[0];
+    return response.data;
   } catch (error) {
-    console.error('VK API error:', error);
+    console.error('Google API error:', error);
     throw error;
   }
 }
 
-// Альтернативная функция для получения данных пользователя через service key
-async function getVKUserByServiceKey(userId) {
+// Yandex OAuth helper functions
+async function exchangeYandexCode(code, redirectUri) {
   try {
-    const response = await axios.get('https://api.vk.com/method/users.get', {
-      params: {
-        user_ids: userId,
-        fields: 'id,first_name,last_name,screen_name,photo_200',
-        access_token: VK_SERVICE_KEY,
-        v: '5.131'
+    const response = await axios.post('https://oauth.yandex.ru/token', {
+      grant_type: 'authorization_code',
+      code: code,
+      client_id: YANDEX_CLIENT_ID,
+      client_secret: YANDEX_CLIENT_SECRET,
+      redirect_uri: redirectUri
+    }, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
       }
     });
 
-    if (response.data.error) {
-      throw new Error(response.data.error.error_msg);
-    }
-
-    return response.data.response[0];
+    return response.data;
   } catch (error) {
-    console.error('VK Service API error:', error);
+    console.error('Yandex token exchange error:', error);
+    throw error;
+  }
+}
+
+async function getYandexUserInfo(accessToken) {
+  try {
+    const response = await axios.get('https://login.yandex.ru/info', {
+      headers: {
+        'Authorization': `OAuth ${accessToken}`
+      }
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error('Yandex user info error:', error);
     throw error;
   }
 }
@@ -416,23 +420,19 @@ io.on('connection', (socket) => {
     try {
       let verifiedUserInfo;
       
-      if (provider === 'vk') {
+      if (provider === 'google') {
         try {
-          verifiedUserInfo = await verifyVKToken(accessToken);
+          verifiedUserInfo = await verifyGoogleToken(accessToken);
         } catch (error) {
-          // Если ошибка связана с IP-адресом, попробуем использовать service key
-          if (error.message.includes('IP') || error.message.includes('invalid for this server')) {
-            console.log('Trying alternative VK authentication method...');
-            // Извлекаем user_id из токена или используем данные из userInfo
-            const userId = userInfo?.id || userInfo?.user_id;
-            if (userId) {
-              verifiedUserInfo = await getVKUserByServiceKey(userId);
-            } else {
-              throw new Error('Unable to authenticate with VK. Please try again.');
-            }
-          } else {
-            throw error;
-          }
+          console.error('Google token verification failed:', error);
+          throw new Error('Google authentication failed');
+        }
+      } else if (provider === 'yandex') {
+        try {
+          verifiedUserInfo = await getYandexUserInfo(accessToken);
+        } catch (error) {
+          console.error('Yandex token verification failed:', error);
+          throw new Error('Yandex authentication failed');
         }
       } else {
         socket.emit('social:auth:error', { message: 'Unsupported provider' });
@@ -960,6 +960,44 @@ io.on('connection', (socket) => {
 });
 
 // Обработка статических файлов и SPA
+// API endpoints for OAuth callbacks
+app.use(express.json());
+
+// Yandex OAuth token exchange endpoint
+app.post('/api/yandex/token', async (req, res) => {
+  try {
+    const { code, redirect_uri } = req.body;
+    
+    if (!code || !redirect_uri) {
+      return res.status(400).json({ error: 'Missing required parameters' });
+    }
+    
+    const tokenData = await exchangeYandexCode(code, redirect_uri);
+    res.json(tokenData);
+  } catch (error) {
+    console.error('Yandex token exchange error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Yandex user info endpoint
+app.post('/api/yandex/user', async (req, res) => {
+  try {
+    const { access_token } = req.body;
+    
+    if (!access_token) {
+      return res.status(400).json({ error: 'Missing access token' });
+    }
+    
+    const userInfo = await getYandexUserInfo(access_token);
+    res.json({ access_token, ...userInfo });
+  } catch (error) {
+    console.error('Yandex user info error:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
+// Serve static files
 app.use(express.static(path.resolve(__dirname, '../src')));
 app.use((_, res) => res.sendFile(path.resolve(__dirname, '../src/index.html')));
 

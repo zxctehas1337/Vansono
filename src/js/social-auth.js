@@ -1,199 +1,172 @@
 // ===== SOCIAL AUTH MODULE =====
-// Интеграция с VK ID, OK, Mail.ru
+// Интеграция с Google OAuth и Yandex OAuth
 
-// VK ID Configuration
-const VK_CONFIG = {
-  app: 54249385,
-  redirectUrl: window.location.origin, // Убираем слеш в конце для совместимости с настройками VK
-  responseMode: 'popup', // Переключаемся на popup режим для лучшей совместимости
-  source: 'lowcode',
-  scope: ''
+// Google OAuth Configuration
+const GOOGLE_CONFIG = {
+  clientId: '260775726499-60afbdiha77eig1qsphoktihdhe99f14.apps.googleusercontent.com', // Замените на ваш Google Client ID из config.env
+  redirectUri: window.location.origin
 };
 
-// Initialize VK ID SDK
-function initializeVKID() {
-  if ('VKIDSDK' in window) {
-    const VKID = window.VKIDSDK;
-    
-    console.log('Initializing VK ID with config:', VK_CONFIG);
+// Yandex OAuth Configuration
+const YANDEX_CONFIG = {
+  clientId: '8217fc55c26e4c35bf819d35f47072a3', // Замените на ваш Yandex Client ID из config.env
+  redirectUri: window.location.origin
+};
+
+// Initialize Google OAuth
+function initializeGoogleAuth() {
+  if (typeof google !== 'undefined' && google.accounts) {
+    console.log('Initializing Google OAuth...');
     
     try {
-      VKID.Config.init({
-        app: VK_CONFIG.app,
-        redirectUrl: VK_CONFIG.redirectUrl,
-        responseMode: VKID.ConfigResponseMode.Popup, // Используем Popup режим
-        source: VKID.ConfigSource.LOWCODE,
-        scope: VK_CONFIG.scope
+      google.accounts.id.initialize({
+        client_id: GOOGLE_CONFIG.clientId,
+        callback: handleGoogleResponse,
+        auto_select: false,
+        cancel_on_tap_outside: true
       });
-
-      const oneTap = new VKID.OneTap();
-
-      oneTap.render({
-        container: document.getElementById('vk-auth-widget'),
-        scheme: 'dark',
-        showAlternativeLogin: true
-      })
-      .on(VKID.WidgetEvents.ERROR, handleVKIDError)
-      .on(VKID.WidgetEvents.LOGIN_SUCCESS, function (payload) {
-        console.log('VK ID Login Success Payload:', payload);
-        
-        // Проверяем наличие access_token
-        if (payload.access_token) {
-          handleVKIDSuccess(payload);
-        } else if (payload.code) {
-          // Если есть code, обмениваем его на токен
-          const code = payload.code;
-          const deviceId = payload.device_id;
-          
-          console.log('Exchanging code for token:', { code, deviceId });
-          
-          VKID.Auth.exchangeCode(code, deviceId)
-            .then((tokenData) => {
-              console.log('Token exchange successful:', tokenData);
-              handleVKIDSuccess(tokenData);
-            })
-            .catch((error) => {
-              console.error('Token exchange failed:', error);
-              handleVKIDError(error);
-            });
-        } else {
-          console.error('No access_token or code in payload:', payload);
-          handleVKIDError({ error: 'invalid_response', error_description: 'No valid authentication data received' });
-        }
-      })
-      .on(VKID.WidgetEvents.LOGIN_FAILED, function(error) {
-        console.log('VK ID Login Failed:', error);
-        handleVKIDError(error);
-      })
-      .on(VKID.WidgetEvents.READY, function() {
-        console.log('VK ID Widget is ready');
-      });
-
-      console.log('VK ID SDK initialized successfully');
       
-      // Проверяем, что виджет рендерится
-      setTimeout(() => {
-        const widget = document.getElementById('vk-auth-widget');
-        if (widget && widget.hasChildNodes()) {
-          console.log('VK ID Widget rendered successfully');
-          console.log('Widget children count:', widget.children.length);
-          console.log('Widget innerHTML length:', widget.innerHTML.length);
-          
-          // Добавляем обработчик клика для отладки
-          widget.addEventListener('click', function(e) {
-            console.log('Widget clicked:', e.target);
-          });
-        } else {
-          console.warn('VK ID Widget not rendered or empty');
-          console.log('Widget element:', widget);
-          console.log('Widget hasChildNodes:', widget ? widget.hasChildNodes() : 'widget is null');
-        }
-      }, 2000);
-      
+      console.log('Google OAuth initialized successfully');
     } catch (error) {
-      console.error('Error initializing VK ID SDK:', error);
-      showVKIDError('Failed to initialize VK ID. Please refresh the page.');
+      console.error('Error initializing Google OAuth:', error);
+      showSocialAuthError('Failed to initialize Google authentication');
     }
   } else {
-    console.error('VK ID SDK not loaded');
-    showVKIDError('VK ID SDK not loaded. Please check your internet connection.');
+    console.error('Google OAuth SDK not loaded');
+    showSocialAuthError('Google OAuth SDK not loaded');
   }
 }
 
-// Handle successful VK ID authentication
-function handleVKIDSuccess(data) {
-  console.log('VK ID authentication successful:', data);
+// Handle Google OAuth response
+function handleGoogleResponse(response) {
+  console.log('Google OAuth response received:', response);
   
-  if (data.access_token || data.token) {
-    const accessToken = data.access_token || data.token;
+  try {
+    // Decode the JWT token
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
     
-    // Получаем информацию о пользователе
-    const userInfo = data.user || data.userInfo || {
-      id: data.id || data.user_id,
-      first_name: data.first_name,
-      last_name: data.last_name,
-      screen_name: data.screen_name,
-      photo_200: data.photo_200
+    const userInfo = {
+      id: payload.sub,
+      name: payload.name,
+      email: payload.email,
+      picture: payload.picture,
+      given_name: payload.given_name,
+      family_name: payload.family_name
     };
     
-    console.log('Sending to server:', {
-      provider: 'vk',
-      accessToken: accessToken,
+    console.log('Sending Google auth to server:', {
+      provider: 'google',
       userInfo: userInfo
     });
     
-    // Проверяем, что Core.socket доступен
+    // Send to server for verification and user creation/login
     if (window.Core && window.Core.socket) {
-      console.log('Sending social:auth event to server...');
-      // Send token to server for verification and user creation/login
       window.Core.socket.emit('social:auth', {
-        provider: 'vk',
-        accessToken: accessToken,
+        provider: 'google',
+        accessToken: response.credential,
         userInfo: userInfo
       });
     } else {
       console.error('Core.socket not available');
-      showVKIDError('Connection error. Please refresh the page.');
+      showSocialAuthError('Connection error. Please refresh the page.');
     }
-  } else {
-    console.error('No access token in VK ID response:', data);
-    showVKIDError('No access token received from VK ID');
+  } catch (error) {
+    console.error('Error processing Google response:', error);
+    showSocialAuthError('Failed to process Google authentication');
   }
 }
 
-// Handle VK ID authentication error
-function handleVKIDError(error) {
-  console.error('VK ID authentication error:', error);
+// Handle Google authentication error
+function handleGoogleError(error) {
+  console.error('Google authentication error:', error);
+  showSocialAuthError('Google authentication failed');
+}
+
+// Initialize Yandex OAuth
+function initializeYandexAuth() {
+  console.log('Yandex OAuth will be handled via popup window');
+}
+
+// Handle Yandex OAuth login
+function handleYandexLogin() {
+  console.log('Starting Yandex OAuth flow...');
   
-  let errorMessage = 'Authentication failed';
+  const yandexAuthUrl = `https://oauth.yandex.ru/authorize?response_type=code&client_id=${YANDEX_CONFIG.clientId}&redirect_uri=${encodeURIComponent(YANDEX_CONFIG.redirectUri)}&scope=login:email+login:info`;
   
-  if (error && error.error) {
-    switch (error.error) {
-      case 'access_denied':
-        errorMessage = 'Access denied by user';
-        break;
-      case 'invalid_request':
-        errorMessage = 'Invalid authentication request';
-        break;
-      case 'server_error':
-        errorMessage = 'VK server error. Please try again later';
-        break;
-      case 'popup_closed':
-      case 'user_closed_popup':
-        // Не показываем ошибку, если пользователь сам закрыл popup
-        console.log('User closed the authentication popup');
-        return;
-      case 'invalid_redirect_uri':
-        errorMessage = 'Redirect URL configuration error. Please contact support.';
-        console.error('Redirect URI error - check VK app settings');
-        break;
-      default:
-        errorMessage = error.error_description || errorMessage;
+  // Open popup window
+  const popup = window.open(
+    yandexAuthUrl,
+    'yandex-auth',
+    'width=500,height=600,scrollbars=yes,resizable=yes'
+  );
+  
+  // Listen for popup messages
+  const messageListener = (event) => {
+    if (event.origin !== window.location.origin) return;
+    
+    if (event.data.type === 'YANDEX_AUTH_SUCCESS') {
+      console.log('Yandex auth success:', event.data);
+      handleYandexSuccess(event.data);
+      popup.close();
+      window.removeEventListener('message', messageListener);
+    } else if (event.data.type === 'YANDEX_AUTH_ERROR') {
+      console.error('Yandex auth error:', event.data);
+      handleYandexError(event.data.error);
+      popup.close();
+      window.removeEventListener('message', messageListener);
     }
-  } else if (error && error.code === 2) {
-    // Особая обработка ошибки "New tab has been closed"
-    if (error.text && error.text.includes('closed')) {
-      console.log('Authentication popup was closed by user');
-      return; // Не показываем ошибку
-    }
-    errorMessage = 'Authentication window was closed unexpectedly. Please try again.';
-  } else if (typeof error === 'string') {
-    errorMessage = error;
-  }
+  };
   
-  // Показываем детальную ошибку в консоли для отладки
-  console.error('Detailed error info:', {
-    error: error,
-    redirectUrl: VK_CONFIG.redirectUrl,
-    appId: VK_CONFIG.app,
-    responseMode: VK_CONFIG.responseMode
+  window.addEventListener('message', messageListener);
+  
+  // Check if popup was closed manually
+  const checkClosed = setInterval(() => {
+    if (popup.closed) {
+      clearInterval(checkClosed);
+      window.removeEventListener('message', messageListener);
+      console.log('Yandex auth popup was closed');
+    }
+  }, 1000);
+}
+
+// Handle successful Yandex authentication
+function handleYandexSuccess(data) {
+  console.log('Yandex authentication successful:', data);
+  
+  const userInfo = {
+    id: data.user_id,
+    name: data.real_name || data.display_name,
+    email: data.default_email,
+    picture: data.default_avatar_id ? `https://avatars.yandex.net/get-yapic/${data.default_avatar_id}/islands-200` : null,
+    login: data.login
+  };
+  
+  console.log('Sending Yandex auth to server:', {
+    provider: 'yandex',
+    userInfo: userInfo
   });
   
-  showVKIDError(errorMessage);
+  // Send to server for verification and user creation/login
+  if (window.Core && window.Core.socket) {
+    window.Core.socket.emit('social:auth', {
+      provider: 'yandex',
+      accessToken: data.access_token,
+      userInfo: userInfo
+    });
+  } else {
+    console.error('Core.socket not available');
+    showSocialAuthError('Connection error. Please refresh the page.');
+  }
 }
 
-// Show VK ID error message
-function showVKIDError(message) {
+// Handle Yandex authentication error
+function handleYandexError(error) {
+  console.error('Yandex authentication error:', error);
+  showSocialAuthError('Yandex authentication failed');
+}
+
+// Show social authentication error message
+function showSocialAuthError(message) {
   const errorElement = document.getElementById('auth-error');
   if (errorElement) {
     errorElement.textContent = message;
@@ -203,7 +176,6 @@ function showVKIDError(message) {
 }
 
 // Handle social authentication response from server
-// Регистрируем обработчики только после того, как Core.socket готов
 function registerSocketHandlers() {
   if (window.Core && window.Core.socket) {
     console.log('Registering socket handlers for social auth...');
@@ -223,7 +195,7 @@ function registerSocketHandlers() {
 
     window.Core.socket.on('social:auth:error', (data) => {
       console.error('Social authentication error:', data);
-      showVKIDError(data.message || 'Authentication failed');
+      showSocialAuthError(data.message || 'Authentication failed');
     });
   } else {
     console.warn('Core.socket not ready, retrying in 1 second...');
@@ -231,98 +203,138 @@ function registerSocketHandlers() {
   }
 }
 
-// Функция для повторной попытки инициализации
-let vkidInitAttempts = 0;
-const MAX_VKID_INIT_ATTEMPTS = 3;
-
-function retryVKIDInit() {
-  vkidInitAttempts++;
-  if (vkidInitAttempts <= MAX_VKID_INIT_ATTEMPTS) {
-    console.log(`VK ID initialization attempt ${vkidInitAttempts}`);
-    if (vkidInitAttempts === MAX_VKID_INIT_ATTEMPTS) {
-      // На последней попытке используем простую инициализацию
-      console.log('Trying simple VK ID initialization...');
-      setTimeout(initializeVKIDSimple, 1000 * vkidInitAttempts);
-    } else {
-      setTimeout(initializeVKID, 1000 * vkidInitAttempts);
-    }
-  } else {
-    console.error('Failed to initialize VK ID after maximum attempts');
-    showVKIDError('Failed to load VK ID. Please refresh the page and try again.');
-  }
-}
-
 // Initialize social auth when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-  console.log('DOM loaded, initializing VK ID...');
+  console.log('DOM loaded, initializing social auth...');
   
-  // Регистрируем обработчики сокетов
+  // Register socket handlers
   registerSocketHandlers();
   
-  // Wait for VK ID SDK to load
+  // Initialize Google OAuth
   setTimeout(() => {
-    if ('VKIDSDK' in window) {
-      console.log('VK ID SDK found, initializing...');
-      initializeVKID();
+    if (typeof google !== 'undefined' && google.accounts) {
+      initializeGoogleAuth();
     } else {
-      console.log('VK ID SDK not found, retrying...');
-      retryVKIDInit();
+      console.log('Google OAuth SDK not found, retrying...');
+      setTimeout(() => {
+        if (typeof google !== 'undefined' && google.accounts) {
+          initializeGoogleAuth();
+        } else {
+          console.error('Google OAuth SDK failed to load');
+          showSocialAuthError('Google OAuth SDK failed to load');
+        }
+      }, 2000);
     }
   }, 1000);
   
-  // Дополнительная проверка через 3 секунды
-  setTimeout(() => {
-    if (!document.getElementById('vk-auth-widget').hasChildNodes()) {
-      console.log('VK ID widget not rendered, trying alternative initialization...');
-      retryVKIDInit();
-    }
-  }, 3000);
+  // Initialize Yandex OAuth
+  initializeYandexAuth();
+  
+  // Add event listeners for social login buttons
+  const googleBtn = document.getElementById('google-login-btn');
+  const yandexBtn = document.getElementById('yandex-login-btn');
+  
+  if (googleBtn) {
+    googleBtn.addEventListener('click', () => {
+      console.log('Google login button clicked');
+      if (typeof google !== 'undefined' && google.accounts) {
+        google.accounts.id.prompt();
+      } else {
+        showSocialAuthError('Google OAuth not available');
+      }
+    });
+  }
+  
+  if (yandexBtn) {
+    yandexBtn.addEventListener('click', () => {
+      console.log('Yandex login button clicked');
+      handleYandexLogin();
+    });
+  }
 });
 
-// Альтернативная инициализация с минимальной конфигурацией
-function initializeVKIDSimple() {
-  if ('VKIDSDK' in window) {
-    const VKID = window.VKIDSDK;
-    
-    console.log('Initializing VK ID with simple config...');
-    
-    try {
-      // Минимальная конфигурация
-      VKID.Config.init({
-        app: 54249385,
-        redirectUrl: window.location.origin
-      });
-
-      const oneTap = new VKID.OneTap();
-      
-      oneTap.render({
-        container: document.getElementById('vk-auth-widget')
-      })
-      .on(VKID.WidgetEvents.ERROR, handleVKIDError)
-      .on(VKID.WidgetEvents.LOGIN_SUCCESS, function (payload) {
-        console.log('VK ID Login Success (Simple):', payload);
-        handleVKIDSuccess(payload);
-      });
-
-      console.log('VK ID SDK initialized successfully (Simple mode)');
-    } catch (error) {
-      console.error('Error initializing VK ID SDK (Simple):', error);
-      showVKIDError('Failed to initialize VK ID. Please refresh the page.');
-    }
+// Handle OAuth callback for Yandex
+function handleOAuthCallback() {
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  const error = urlParams.get('error');
+  
+  if (error) {
+    console.error('OAuth error:', error);
+    window.opener?.postMessage({
+      type: 'YANDEX_AUTH_ERROR',
+      error: error
+    }, window.location.origin);
+    return;
   }
+  
+  if (code) {
+    console.log('OAuth code received:', code);
+    
+    // Exchange code for access token
+    fetch('/api/yandex/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        code: code,
+        redirect_uri: YANDEX_CONFIG.redirectUri
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Get user info
+      return fetch('/api/yandex/user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          access_token: data.access_token
+        })
+      });
+    })
+    .then(response => response.json())
+    .then(userData => {
+      window.opener?.postMessage({
+        type: 'YANDEX_AUTH_SUCCESS',
+        access_token: userData.access_token,
+        ...userData
+      }, window.location.origin);
+    })
+    .catch(error => {
+      console.error('OAuth token exchange error:', error);
+      window.opener?.postMessage({
+        type: 'YANDEX_AUTH_ERROR',
+        error: error.message
+      }, window.location.origin);
+    });
+  }
+}
+
+// Check if this is an OAuth callback
+if (window.location.search.includes('code=') || window.location.search.includes('error=')) {
+  handleOAuthCallback();
 }
 
 // Export functions for other modules
 window.SocialAuth = {
-  initializeVKID,
-  initializeVKIDSimple,
-  handleVKIDSuccess,
-  handleVKIDError,
-  showVKIDError,
+  initializeGoogleAuth,
+  initializeYandexAuth,
+  handleGoogleResponse,
+  handleYandexLogin,
+  handleYandexSuccess,
+  handleYandexError,
+  showSocialAuthError,
   registerSocketHandlers
 };
 
-// Альтернативная инициализация, если Core готов позже
+// Register handlers if Core is already available
 if (window.Core && window.Core.socket) {
   console.log('Core.socket already available, registering handlers immediately');
   registerSocketHandlers();
