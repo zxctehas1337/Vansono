@@ -1079,57 +1079,69 @@ const favoritesInput = document.getElementById('favorites-input');
 const favoritesSendBtn = document.getElementById('favorites-send-btn');
 
 // Menu functionality
-menuBtn.addEventListener('click', () => {
-  menuOverlay.classList.add('active');
-});
-
-closeMenuBtn.addEventListener('click', () => {
-  menuOverlay.classList.remove('active');
-});
-
-// Close menu when clicking outside
-menuOverlay.addEventListener('click', (e) => {
-  if (e.target === menuOverlay) {
+if (menuBtn) {
+  menuBtn.addEventListener('click', () => {
+    menuOverlay.classList.add('active');
+  });
+}
+if (closeMenuBtn) {
+  closeMenuBtn.addEventListener('click', () => {
     menuOverlay.classList.remove('active');
-  }
-});
-
+  });
+}
+// Close menu when clicking outside
+if (menuOverlay) {
+  menuOverlay.addEventListener('click', (e) => {
+    if (e.target === menuOverlay) {
+      menuOverlay.classList.remove('active');
+    }
+  });
+}
 // Menu item handlers
-favoritesBtn.addEventListener('click', () => {
-  menuOverlay.classList.remove('active');
-  showFavorites();
-});
-
-profileBtn.addEventListener('click', () => {
-  menuOverlay.classList.remove('active');
-  showProfile();
-});
-
-settingsBtn.addEventListener('click', () => {
-  menuOverlay.classList.remove('active');
-  showSettings();
-});
-
-exitBtn.addEventListener('click', () => {
-  menuOverlay.classList.remove('active');
-  logout();
-});
+if (favoritesBtn) {
+  favoritesBtn.addEventListener('click', () => {
+    menuOverlay.classList.remove('active');
+    showFavorites();
+  });
+}
+if (profileBtn) {
+  profileBtn.addEventListener('click', () => {
+    menuOverlay.classList.remove('active');
+    showProfile();
+  });
+}
+if (settingsBtn) {
+  settingsBtn.addEventListener('click', () => {
+    menuOverlay.classList.remove('active');
+    showSettings();
+  });
+}
+if (exitBtn) {
+  exitBtn.addEventListener('click', () => {
+    menuOverlay.classList.remove('active');
+    logout();
+  });
+}
 
 // Back button handlers
-backFromProfile.addEventListener('click', () => {
-  profileScreen.classList.remove('active');
-  chatScreen.classList.add('active');
-});
-
-backFromSettings.addEventListener('click', () => {
-  settingsScreen.classList.remove('active');
-  chatScreen.classList.add('active');
-});
-
-backFromFavorites.addEventListener('click', () => {
-  favoritesChat.style.display = 'none';
-  chatScreen.classList.add('active');
-});
+if (backFromProfile) {
+  backFromProfile.addEventListener('click', () => {
+    profileScreen.classList.remove('active');
+    chatScreen.classList.add('active');
+  });
+}
+if (backFromSettings) {
+  backFromSettings.addEventListener('click', () => {
+    settingsScreen.classList.remove('active');
+    chatScreen.classList.add('active');
+  });
+}
+if (backFromFavorites) {
+  backFromFavorites.addEventListener('click', () => {
+    favoritesChat.style.display = 'none';
+    chatScreen.classList.add('active');
+  });
+}
 
 // ===== FAVORITES FUNCTIONALITY =====
 
@@ -1376,52 +1388,52 @@ function logout() {
 // ===== ENHANCED THEMES =====
 
 // Update themes object with new themes
-const enhancedThemes = {
-  ...themes,
-  blue: {
-    '--bg-primary': '#0f172a',
-    '--bg-secondary': '#1e293b',
-    '--bg-tertiary': '#334155',
-    '--text-primary': '#f1f5f9',
-    '--text-secondary': '#94a3b8',
-    '--text-tertiary': '#64748b',
-    '--accent-primary': '#3b82f6',
-    '--accent-secondary': '#1d4ed8',
-    '--border-color': '#334155',
-    '--success': '#10B981',
-    '--error': '#EF4444'
-  },
-  purple: {
-    '--bg-primary': '#1e1b2e',
-    '--bg-secondary': '#2d1b69',
-    '--bg-tertiary': '#3d2a8a',
-    '--text-primary': '#f3e8ff',
-    '--text-secondary': '#c4b5fd',
-    '--text-tertiary': '#a78bfa',
-    '--accent-primary': '#8b5cf6',
-    '--accent-secondary': '#7c3aed',
-    '--border-color': '#3d2a8a',
-    '--success': '#10B981',
-    '--error': '#EF4444'
-  },
-  green: {
-    '--bg-primary': '#0f1b0f',
-    '--bg-secondary': '#1a2e1a',
-    '--bg-tertiary': '#2d4a2d',
-    '--text-primary': '#f0fff0',
-    '--text-secondary': '#a7f3d0',
-    '--text-tertiary': '#6ee7b7',
-    '--accent-primary': '#10b981',
-    '--accent-secondary': '#059669',
-    '--border-color': '#2d4a2d',
-    '--success': '#10B981',
-    '--error': '#EF4444'
-  }
+// ===== ENHANCED THEMES =====
+
+// Add enhanced themes to the original themes object in-place to avoid hoisting issues
+themes.blue = {
+  '--bg-primary': '#0f172a',
+  '--bg-secondary': '#1e293b',
+  '--bg-tertiary': '#334155',
+  '--text-primary': '#f1f5f9',
+  '--text-secondary': '#94a3b8',
+  '--text-tertiary': '#64748b',
+  '--accent-primary': '#3b82f6',
+  '--accent-secondary': '#1d4ed8',
+  '--border-color': '#334155',
+  '--success': '#10B981',
+  '--error': '#EF4444'
+};
+themes.purple = {
+  '--bg-primary': '#1e1b2e',
+  '--bg-secondary': '#2d1b69',
+  '--bg-tertiary': '#3d2a8a',
+  '--text-primary': '#f3e8ff',
+  '--text-secondary': '#c4b5fd',
+  '--text-tertiary': '#a78bfa',
+  '--accent-primary': '#8b5cf6',
+  '--accent-secondary': '#7c3aed',
+  '--border-color': '#3d2a8a',
+  '--success': '#10B981',
+  '--error': '#EF4444'
+};
+themes.green = {
+  '--bg-primary': '#0f1b0f',
+  '--bg-secondary': '#1a2e1a',
+  '--bg-tertiary': '#2d4a2d',
+  '--text-primary': '#f0fff0',
+  '--text-secondary': '#a7f3d0',
+  '--text-tertiary': '#6ee7b7',
+  '--accent-primary': '#10b981',
+  '--accent-secondary': '#059669',
+  '--border-color': '#2d4a2d',
+  '--success': '#10B981',
+  '--error': '#EF4444'
 };
 
-// Update applyTheme function to use enhanced themes
+// Update applyTheme function to use the themes object directly
 function applyTheme(themeName) {
-  const theme = enhancedThemes[themeName];
+  const theme = themes[themeName];
   if (theme) {
     Object.entries(theme).forEach(([property, value]) => {
       document.documentElement.style.setProperty(property, value);
