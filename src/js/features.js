@@ -8,7 +8,7 @@ let groups = JSON.parse(localStorage.getItem('groups') || '[]');
 let selectedMembers = [];
 
 // Group chat elements (with null checks)
-let createGroupBtn = document.getElementById('create-group-btn');
+let createGroupBtn = document.getElementById('create-group-btn-menu') || document.getElementById('create-group-btn');
 let createGroupModal = document.getElementById('create-group-modal');
 let closeGroupModal = document.getElementById('close-group-modal');
 let cancelGroupBtn = document.getElementById('cancel-group-btn');
@@ -18,11 +18,6 @@ let groupDescriptionInput = document.getElementById('group-description');
 let memberSearchInput = document.getElementById('member-search');
 let membersList = document.getElementById('members-list');
 let selectedMembersContainer = document.getElementById('selected-members');
-
-// Alternative button selectors if primary doesn't exist
-if (!createGroupBtn) {
-  createGroupBtn = document.getElementById('create-group-btn-menu') || document.getElementById('create-group-btn-settings');
-}
 
 // Initialize group chats
 function initializeGroupChats() {
@@ -42,6 +37,8 @@ function setupGroupChatModal() {
   createGroupBtn.addEventListener('click', () => {
     if (createGroupModal) {
       createGroupModal.classList.add('active');
+      const menuOverlay = document.getElementById('menu-overlay');
+      if (menuOverlay) menuOverlay.classList.remove('active');
       populateMembersList();
       if (groupNameInput) groupNameInput.focus();
     }
@@ -615,7 +612,13 @@ function sendVoiceMessage() {
   
   // Send via socket for real-time delivery
   if (window.Core.socket && window.Core.socket.connected) {
-    window.Core.socket.emit('message:send', voiceMessage);
+    window.Core.socket.emit('message:send', {
+      to: window.Core.currentChatUser.id,
+      text: `[Voice Message - ${window.Core.formatDuration(voiceMessage.duration)}]`,
+      type: 'voice',
+      audioUrl: audioUrl,
+      duration: voiceMessage.duration
+    });
   }
   
   // Display voice message
@@ -801,6 +804,89 @@ function stopWaveformAnimation(waveform) {
   const bars = waveform.querySelectorAll('.waveform-bar');
   bars.forEach(bar => {
     bar.style.animation = 'none';
+  });
+}
+
+// ===== SETUP MENU HANDLERS =====
+
+// Secret Chat Modal
+const secretChatModal = document.getElementById('secret-chat-modal');
+const closeSecretModal = document.getElementById('close-secret-modal');
+const cancelSecretBtn = document.getElementById('cancel-secret-btn');
+const createSecretChatBtnMenu = document.getElementById('create-secret-chat-btn-menu');
+
+if (createSecretChatBtnMenu) {
+  createSecretChatBtnMenu.addEventListener('click', () => {
+    if (secretChatModal) {
+      secretChatModal.classList.add('active');
+      document.getElementById('menu-overlay').classList.remove('active');
+    }
+  });
+}
+
+if (closeSecretModal) {
+  closeSecretModal.addEventListener('click', () => {
+    if (secretChatModal) secretChatModal.classList.remove('active');
+  });
+}
+
+if (cancelSecretBtn) {
+  cancelSecretBtn.addEventListener('click', () => {
+    if (secretChatModal) secretChatModal.classList.remove('active');
+  });
+}
+
+// Folder Modal
+const folderModal = document.getElementById('folder-modal');
+const closeFolderModal = document.getElementById('close-folder-modal');
+const cancelFolderBtn = document.getElementById('cancel-folder-btn');
+const createFolderBtnMenu = document.getElementById('create-folder-btn-menu');
+
+if (createFolderBtnMenu) {
+  createFolderBtnMenu.addEventListener('click', () => {
+    if (folderModal) {
+      folderModal.classList.add('active');
+      document.getElementById('menu-overlay').classList.remove('active');
+    }
+  });
+}
+
+if (closeFolderModal) {
+  closeFolderModal.addEventListener('click', () => {
+    if (folderModal) folderModal.classList.remove('active');
+  });
+}
+
+if (cancelFolderBtn) {
+  cancelFolderBtn.addEventListener('click', () => {
+    if (folderModal) folderModal.classList.remove('active');
+  });
+}
+
+// Channel Modal
+const channelModal = document.getElementById('create-channel-modal');
+const closeChannelModal = document.getElementById('close-channel-modal');
+const cancelChannelBtn = document.getElementById('cancel-channel-btn');
+const createChannelBtnMenu = document.getElementById('create-channel-btn-menu');
+
+if (createChannelBtnMenu) {
+  createChannelBtnMenu.addEventListener('click', () => {
+    if (channelModal) {
+      channelModal.classList.add('active');
+      document.getElementById('menu-overlay').classList.remove('active');
+    }
+  });
+}
+
+if (closeChannelModal) {
+  closeChannelModal.addEventListener('click', () => {
+    if (channelModal) channelModal.classList.remove('active');
+  });
+}
+
+if (cancelChannelBtn) {
+  cancelChannelBtn.addEventListener('click', () => {
+    if (channelModal) channelModal.classList.remove('active');
   });
 }
 

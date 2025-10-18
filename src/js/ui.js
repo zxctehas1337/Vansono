@@ -333,24 +333,26 @@ colorOptions.forEach(option => {
 });
 
 avatarLetter.addEventListener('input', (e) => {
-  const letter = e.target.value.toUpperCase();
-  profileAvatar.textContent = letter;
-  document.getElementById('current-user-avatar').textContent = letter;
+  const letter = e.target.value.toUpperCase().charAt(0); // Take only first character
+  if (letter) {
+    profileAvatar.textContent = letter;
+    document.getElementById('current-user-avatar').textContent = letter;
+  }
 });
 
 saveProfileBtn.addEventListener('click', () => {
   const newName = profileName.value.trim();
-  const newUsername = profileUsername.value.trim();
+  let newUsername = profileUsername.value.trim();
   
   if (!newName || !newUsername) {
     window.Core.showNotification('Please fill in all fields', 'error');
     return;
   }
   
-  // Check if username is valid
+  // Auto-add @ if not present
   if (!newUsername.startsWith('@')) {
-    window.Core.showNotification('Username must start with @', 'error');
-    return;
+    newUsername = '@' + newUsername;
+    profileUsername.value = newUsername;
   }
   
   // Update current user

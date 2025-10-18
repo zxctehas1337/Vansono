@@ -194,30 +194,33 @@ socket.on('users:list', (users) => {
       return;
     }
     
-    if (!currentUser || user.id !== currentUser.id) {
-      const chatItem = document.createElement('div');
-      chatItem.className = 'chat-item';
-      chatItem.dataset.userId = user.id;
-      
-      chatItem.innerHTML = `
-        <div style="position: relative;">
-          <div class="avatar" style="width: 48px; height: 48px; font-size: 18px;">
-            ${user.name.charAt(0).toUpperCase()}
-          </div>
-          ${user.online ? '<div class="online-indicator"></div>' : ''}
-        </div>
-        <div class="chat-item-info">
-          <div class="chat-item-header">
-            <span class="chat-item-name">${user.name}</span>
-            <span class="chat-item-time">now</span>
-          </div>
-          <div class="chat-item-preview">${user.username.startsWith('@') ? user.username : `@${user.username}`}</div>
-        </div>
-      `;
-
-      chatItem.addEventListener('click', () => openChat(user));
-      chatsList.appendChild(chatItem);
+    // Skip current user - they shouldn't see themselves in chat list
+    if (currentUser && user.id === currentUser.id) {
+      return;
     }
+    
+    const chatItem = document.createElement('div');
+    chatItem.className = 'chat-item';
+    chatItem.dataset.userId = user.id;
+    
+    chatItem.innerHTML = `
+      <div style="position: relative;">
+        <div class="avatar" style="width: 48px; height: 48px; font-size: 18px;">
+          ${user.name.charAt(0).toUpperCase()}
+        </div>
+        ${user.online ? '<div class="online-indicator"></div>' : ''}
+      </div>
+      <div class="chat-item-info">
+        <div class="chat-item-header">
+          <span class="chat-item-name">${user.name}</span>
+          <span class="chat-item-time">now</span>
+        </div>
+        <div class="chat-item-preview">${user.username.startsWith('@') ? user.username : `@${user.username}`}</div>
+      </div>
+    `;
+
+    chatItem.addEventListener('click', () => openChat(user));
+    chatsList.appendChild(chatItem);
   });
 });
 

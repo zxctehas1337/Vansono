@@ -62,13 +62,19 @@ function switchForm(hideForm, showForm) {
 // Registration (username + password + captcha)
 registerBtn.addEventListener('click', () => {
   const name = regName.value.trim();
-  const username = regUsername.value.trim();
+  let username = regUsername.value.trim();
   const password = regPassword.value.trim();
   const captchaAnswer = regCaptcha.value.trim();
 
   if (!name || !username || !password || !captchaAnswer) {
     showError('Please fill in all fields');
     return;
+  }
+
+  // Auto-add @ if not present
+  if (!username.startsWith('@')) {
+    username = '@' + username;
+    regUsername.value = username;
   }
 
   window.Core.socket.emit('register', { name, username, password, captchaAnswer });
@@ -79,19 +85,30 @@ window.Core.socket.on('register:error', (data) => {
 });
 
 window.Core.socket.on('register:success', (data) => {
+  if (data.token) {
+    localStorage.setItem('authToken', data.token);
+    localStorage.setItem('userData', JSON.stringify(data.user));
+  }
   window.Core.currentUser = data.user;
+  window.Core.updateUserDisplay(data.user);
   window.Core.initializeChat();
 });
 
 // Login (username + password + captcha)
 loginBtn.addEventListener('click', () => {
-  const username = loginUsername.value.trim();
+  let username = loginUsername.value.trim();
   const password = loginPassword.value.trim();
   const captchaAnswer = loginCaptcha.value.trim();
 
   if (!username || !password || !captchaAnswer) {
     showError('Please fill in all fields');
     return;
+  }
+
+  // Auto-add @ if not present
+  if (!username.startsWith('@')) {
+    username = '@' + username;
+    loginUsername.value = username;
   }
 
   window.Core.socket.emit('login', { username, password, captchaAnswer });
@@ -104,15 +121,7 @@ window.Core.socket.on('login:success', (data) => {
     localStorage.setItem('userData', JSON.stringify(data.user));
   }
   window.Core.currentUser = data.user;
-  window.Core.initializeChat();
-});
-
-window.Core.socket.on('register:success', (data) => {
-  if (data.token) {
-    localStorage.setItem('authToken', data.token);
-    localStorage.setItem('userData', JSON.stringify(data.user));
-  }
-  window.Core.currentUser = data.user;
+  window.Core.updateUserDisplay(data.user);
   window.Core.initializeChat();
 });
 

@@ -113,7 +113,8 @@ function displayMessage(message) {
   // Reply indicator
   let replyIndicator = '';
   if (message.replyTo) {
-    const repliedMessage = messages.find(m => m.id === message.replyTo);
+    const messagesHistory = JSON.parse(localStorage.getItem(`messages_${window.Core.currentChatUser.id}`) || '[]');
+    const repliedMessage = messagesHistory.find(m => m.id === message.replyTo);
     if (repliedMessage) {
       replyIndicator = `
         <div class="reply-indicator">
