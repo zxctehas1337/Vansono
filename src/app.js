@@ -37,10 +37,8 @@ document.addEventListener('DOMContentLoaded', () => {
       window.Features.initializeFeatures();
     }
     
-    console.log('Sontha messenger initialized successfully');
     
   } catch (error) {
-    console.error('Error initializing Sontha messenger:', error);
   }
 });
 
@@ -48,10 +46,3 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('error', (event) => {
   console.error('Global error:', event.error);
 });
-
-// Unhandled promise rejection handler
-window.addEventListener('unhandledrejection', (event) => {
-  console.error('Unhandled promise rejection:', event.reason);
-});
-
-console.log('Sontha messenger main script loaded');

@@ -3736,7 +3736,6 @@ function pinMessage(messageId) {
 
 // Show reaction picker
 function showReactionPicker(messageId) {
-  const emojis = ['👍', '👎', '❤️', '😂', '😮', '😢', '😡', '🎉'];
   
   const picker = document.createElement('div');
   picker.className = 'reaction-picker';

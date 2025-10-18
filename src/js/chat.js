@@ -268,8 +268,12 @@ window.Core.socket.on('message:received', (message) => {
 
 // Message sent confirmation
 window.Core.socket.on('message:sent', (message) => {
-  displayMessage(message);
-  window.Core.scrollToBottom();
+  // Only display non-voice messages here
+  // Voice messages will be displayed via message:received to avoid duplication
+  if (message.type !== 'voice') {
+    displayMessage(message);
+    window.Core.scrollToBottom();
+  }
 });
 
 // Message read confirmation

@@ -31,7 +31,6 @@ async function initiateCall(video) {
     
     // Check if SimplePeer is available
     if (typeof SimplePeer === 'undefined') {
-      console.error('SimplePeer library not loaded');
       window.Core.showNotification('Call functionality not available', 'error');
       return;
     }
@@ -69,7 +68,6 @@ async function initiateCall(video) {
     // Track call start time
     window.Core.callStartTime = Date.now();
   } catch (error) {
-    console.error('Error accessing media devices:', error);
     window.Core.showNotification('Unable to access camera/microphone', 'error');
   }
 }
@@ -108,7 +106,6 @@ acceptCallBtn.addEventListener('click', async () => {
   try {
     // Check if SimplePeer is available
     if (typeof SimplePeer === 'undefined') {
-      console.error('SimplePeer library not loaded');
       window.Core.showNotification('Call functionality not available', 'error');
       return;
     }
@@ -152,7 +149,6 @@ acceptCallBtn.addEventListener('click', async () => {
     // Track call start time for accepted calls
     window.Core.callStartTime = Date.now();
   } catch (error) {
-    console.error('Error answering call:', error);
     window.Core.showNotification('Error answering call', 'error');
     endCall();
   }
@@ -303,17 +299,14 @@ function playNotificationSound(type) {
     const audio = new Audio(`src/${type}.mp3`);
     audio.volume = 0.5;
     audio.play().catch(error => {
-      console.warn('Could not play notification sound:', error);
     });
   } catch (error) {
-    console.warn('Error creating audio notification:', error);
   }
 }
 
 // ===== INITIALIZATION =====
 
 function initializeCall() {
-  console.log('Call module initialized');
 }
 
 // Export functions for other modules
