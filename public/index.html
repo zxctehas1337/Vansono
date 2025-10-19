@@ -24,7 +24,11 @@
                     <label for="room-id">ID room (leave empty to create a new one):</label>
                     <input type="text" id="room-id" placeholder="Enter room ID">
                 </div>
-                <button type="submit" class="btn-primary">Enter chat</button>
+                <button type="submit" class="btn-primary">
+                    <!-- Login SVG Icon (User with arrow) -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" style="vertical-align:middle;margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12h7m0 0l-3-3m3 3l-3 3m-6-9a4 4 0 110 8 4 4 0 010-8zm0 8a9 9 0 00-9 9"/></svg>
+                    Enter chat
+                </button>
             </form>
         </div>
     </div>
@@ -35,28 +39,31 @@
         <div class="sidebar">
             <div class="sidebar-header">
                 <h2>Kik Messenger</h2>
-                <button id="settings-btn" 
-                <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
-                  </svg>
-                  </button>
+                <button id="settings-btn" title="Settings">
+                    <!-- Gear SVG Icon -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" style="vertical-align:middle;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
+                        <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            d="M19.4 15A1.7 1.7 0 0021 13.3V10.6A1.7 1.7 0 0019.4 9M4.6 9A1.7 1.7 0 013 10.7v2.7a1.7 1.7 0 001.6 1.7M13.3 3h-2.7A1.7 1.7 0 009 4.6v1.9M15 19.4v1.9A1.7 1.7 0 0113.3 21h-2.7A1.7 1.7 0 019 19.4v-1.9"/>
+                    </svg>
+                </button>
             </div>
             
             <div class="room-info">
-                <div class="room-id">Комната: <span id="current-room-id">-</span></div>
-                <div class="user-count">Пользователей: <span id="user-count">0</span></div>
+                <div class="room-id">Room: <span id="current-room-id">-</span></div>
+                <div class="user-count">Users: <span id="user-count">0</span></div>
             </div>
 
             <div class="users-list">
-                <h3>Участники</h3>
+                <h3>Users</h3>
                 <ul id="users-list"></ul>
             </div>
 
             <!-- Настройки -->
             <div id="settings-panel" class="settings-panel hidden">
-                <h3>Настройки</h3>
+                <h3>Settings</h3>
                 <div class="setting-group">
-                    <label for="theme-select">Тема:</label>
+                    <label for="theme-select">Theme:</label>
                     <select id="theme-select">
                         <option value="dark">Dark</option>
                         <option value="monokai">Monokai</option>
@@ -66,24 +73,42 @@
                     </select>
                 </div>
                 <div class="setting-group">
-                    <label for="font-size">Размер шрифта:</label>
+                    <label for="font-size">Font size:</label>
                     <select id="font-size">
-                        <option value="small">Маленький</option>
-                        <option value="medium" selected>Средний</option>
-                        <option value="large">Большой</option>
+                        <option value="small">Small</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="large">Large</option>
                     </select>
                 </div>
-                <button id="logout-btn" class="btn-secondary">Выйти</button>
+                <button id="logout-btn" class="btn-secondary">
+                    <!-- Logout SVG Icon (Logout arrow left) -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" style="vertical-align:middle;margin-right:6px;" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h4a2 2 0 012 2v1"/></svg>
+                    Logout
+                </button>
             </div>
         </div>
 
         <!-- Основная область чата -->
         <div class="chat-main">
             <div class="chat-header">
-                <h3>Чат</h3>
+                <h3>Chat</h3>
                 <div class="call-controls">
-                    <button id="call-btn" class="btn-call">📞 Позвонить</button>
-                    <button id="end-call-btn" class="btn-end-call hidden">📵 Завершить</button>
+                    <!-- Call Button -->
+                    <button id="call-btn" title="Start Call" style="background:none; border:none; padding:0; cursor:pointer;">
+                        <!-- Phone SVG Icon (Call) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" style="vertical-align:middle;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                d="M15.05 5A5.978 5.978 0 016 15.05l2.2 2.2a1.92 1.92 0 002.7-.15l1.18-1.18a2.02 2.02 0 012.5-.23 11.72 11.72 0 004.86 4.86c.77.42 2-.06 2.23-.89l1.18-1.18a1.92 1.92 0 00-.15-2.7l-2.2-2.2A5.978 5.978 0 0115.05 5z"/>
+                        </svg>
+                    </button>
+                    <!-- End Call Button -->
+                    <button id="end-call-btn" title="End Call" style="background:none; border:none; padding:0; cursor:pointer; margin-left:10px;">
+                        <!-- Phone Off SVG Icon (End Call) -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" style="vertical-align:middle;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                                d="M3 3l18 18M22 16.92V21a2 2 0 01-2.18 2A19.22 19.22 0 013 5.18 2 2 0 015 3h4.09a2 2 0 012 2.18c-.02.6.47 1.09 1.07 1.09C13.01 6.26 16 9.17 16 13.01c0 .6.49 1.09 1.09 1.09.52 0 .91.41.91.91z"/>
+                        </svg>
+                    </button>
                 </div>
             </div>
 
@@ -95,8 +120,15 @@
             <!-- Форма отправки сообщений -->
             <div class="message-input-container">
                 <form id="message-form">
-                    <input type="text" id="message-input" placeholder="Введите сообщение..." required>
-                    <button type="submit" class="btn-send">Отправить</button>
+                    <input type="text" id="message-input" placeholder="Enter message..." required>
+                    <button type="submit" class="btn-send">
+                        <!-- Send SVG Icon -->
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" style="vertical-align:middle;margin-right:6px;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        Send
+                    </button>
                 </form>
             </div>
         </div>
@@ -105,10 +137,24 @@
     <!-- Модальное окно входящего звонка -->
     <div id="incoming-call-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>Входящий звонок от <span id="caller-name">-</span></h3>
+            <h3>Incoming call from <span id="caller-name">-</span></h3>
             <div class="call-buttons">
-                <button id="accept-call-btn" class="btn-accept">📞 Принять</button>
-                <button id="reject-call-btn" class="btn-reject">📵 Отклонить</button>
+                <button id="accept-call-btn" class="btn-accept">
+                    <!-- Phone SVG Icon (Accept Call, green) -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" style="vertical-align:middle;margin-right:4px;" fill="none" viewBox="0 0 24 24" stroke="green">
+                        <path stroke="green" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            d="M15.05 5A5.978 5.978 0 016 15.05l2.2 2.2a1.92 1.92 0 002.7-.15l1.18-1.18a2.02 2.02 0 012.5-.23 11.72 11.72 0 004.86 4.86c.77.42 2-.06 2.23-.89l1.18-1.18a1.92 1.92 0 00-.15-2.7l-2.2-2.2A5.978 5.978 0 0115.05 5z"/>
+                    </svg>
+                    Accept
+                </button>
+                <button id="reject-call-btn" class="btn-reject">
+                    <!-- Phone Off SVG Icon (Reject Call, red) -->
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" style="vertical-align:middle;margin-right:4px;" fill="none" viewBox="0 0 24 24" stroke="red">
+                        <path stroke="red" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                            d="M3 3l18 18M22 16.92V21a2 2 0 01-2.18 2A19.22 19.22 0 013 5.18 2 2 0 015 3h4.09a2 2 0 012 2.18c-.02.6.47 1.09 1.07 1.09C13.01 6.26 16 9.17 16 13.01c0 .6.49 1.09 1.09 1.09.52 0 .91.41.91.91z"/>
+                    </svg>
+                    Reject
+                </button>
             </div>
         </div>
     </div>
@@ -119,7 +165,13 @@
             <video id="local-video" autoplay muted></video>
             <video id="remote-video" autoplay></video>
         </div>
-        <button id="close-video-btn" class="btn-close-video">✕</button>
+        <button id="close-video-btn" class="btn-close-video" title="Close Video">
+            <!-- Close SVG Icon (X) -->
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" style="vertical-align:middle;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <line x1="18" y1="6" x2="6" y2="18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <line x1="6" y1="6" x2="18" y2="18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </button>
     </div>
 
     <!-- Подключение скриптов -->
