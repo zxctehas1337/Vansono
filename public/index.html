@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kik Messenger</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- Экран входа -->
+    <div id="login-screen" class="screen active">
+        <div class="login-container">
+            <h1>Kik Messenger</h1>
+            <form id="login-form">
+                <div class="form-group">
+                    <label for="username">Name</label>
+                    <input type="text" id="username" required placeholder="Enter your name">
+                </div>
+                <div class="form-group">
+                    <label for="nickname">Username:</label>
+                    <input type="text" id="nickname" required placeholder="Enter your username">
+                </div>
+                <div class="form-group">
+                    <label for="room-id">ID room (leave empty to create a new one):</label>
+                    <input type="text" id="room-id" placeholder="Enter room ID">
+                </div>
+                <button type="submit" class="btn-primary">Enter chat</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Основной экран чата -->
+    <div id="chat-screen" class="screen">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Kik Messenger</h2>
+                <button id="settings-btn" 
+                <svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red" />
+                  </svg>
+                  </button>
+            </div>
+            
+            <div class="room-info">
+                <div class="room-id">Комната: <span id="current-room-id">-</span></div>
+                <div class="user-count">Пользователей: <span id="user-count">0</span></div>
+            </div>
+
+            <div class="users-list">
+                <h3>Участники</h3>
+                <ul id="users-list"></ul>
+            </div>
+
+            <!-- Настройки -->
+            <div id="settings-panel" class="settings-panel hidden">
+                <h3>Настройки</h3>
+                <div class="setting-group">
+                    <label for="theme-select">Тема:</label>
+                    <select id="theme-select">
+                        <option value="dark">Dark</option>
+                        <option value="monokai">Monokai</option>
+                        <option value="gradient">Gradient</option>
+                        <option value="nordwind">Nordwind</option>
+                        <option value="light">Light</option>
+                    </select>
+                </div>
+                <div class="setting-group">
+                    <label for="font-size">Размер шрифта:</label>
+                    <select id="font-size">
+                        <option value="small">Маленький</option>
+                        <option value="medium" selected>Средний</option>
+                        <option value="large">Большой</option>
+                    </select>
+                </div>
+                <button id="logout-btn" class="btn-secondary">Выйти</button>
+            </div>
+        </div>
+
+        <!-- Основная область чата -->
+        <div class="chat-main">
+            <div class="chat-header">
+                <h3>Чат</h3>
+                <div class="call-controls">
+                    <button id="call-btn" class="btn-call">📞 Позвонить</button>
+                    <button id="end-call-btn" class="btn-end-call hidden">📵 Завершить</button>
+                </div>
+            </div>
+
+            <!-- Область сообщений -->
+            <div class="messages-container">
+                <div id="messages-list" class="messages-list"></div>
+            </div>
+
+            <!-- Форма отправки сообщений -->
+            <div class="message-input-container">
+                <form id="message-form">
+                    <input type="text" id="message-input" placeholder="Введите сообщение..." required>
+                    <button type="submit" class="btn-send">Отправить</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно входящего звонка -->
+    <div id="incoming-call-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Входящий звонок от <span id="caller-name">-</span></h3>
+            <div class="call-buttons">
+                <button id="accept-call-btn" class="btn-accept">📞 Принять</button>
+                <button id="reject-call-btn" class="btn-reject">📵 Отклонить</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Видео контейнер -->
+    <div id="video-container" class="video-container hidden">
+        <div class="video-grid">
+            <video id="local-video" autoplay muted></video>
+            <video id="remote-video" autoplay></video>
+        </div>
+        <button id="close-video-btn" class="btn-close-video">✕</button>
+    </div>
+
+    <!-- Подключение скриптов -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
