@@ -154,7 +154,7 @@ function setupSocketListeners() {
     socket.on('user-joined', function(data) {
         updateUserCount();
         addUserToList(data);
-        showNotification(`${data.nickname} присоединился к чату`);
+        showNotification(`${data.nickname} присоединился к чату`, 'success');
     });
     
     // Пользователь покинул
@@ -171,12 +171,12 @@ function setupSocketListeners() {
     
     socket.on('call-rejected', function() {
         hideIncomingCallModal();
-        showNotification('Звонок отклонен');
+        showNotification('Звонок отклонен', 'warning');
     });
     
     socket.on('call-ended', function() {
         endCall();
-        showNotification('Звонок завершен');
+        showNotification('Звонок завершен', 'info');
     });
     
     socket.on('webrtc-offer', function(data) {
@@ -231,6 +231,8 @@ function handleLogin(e) {
     // Переход к экрану чата
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('chat-screen').classList.add('active');
+    
+    showNotification('Добро пожаловать в чат!', 'success');
 }
 
 // Обработка отправки сообщения
@@ -257,6 +259,10 @@ function displayMessage(message) {
     const isOwnMessage = message.userId === socket.id;
     messageElement.className = `message ${isOwnMessage ? 'own' : 'other'}`;
     
+    // Добавляем класс для анимации
+    messageElement.style.opacity = '0';
+    messageElement.style.transform = isOwnMessage ? 'translateX(20px)' : 'translateX(-20px)';
+    
     const timestamp = new Date(message.timestamp).toLocaleTimeString();
     
     messageElement.innerHTML = `
@@ -266,7 +272,21 @@ function displayMessage(message) {
     `;
     
     messagesList.appendChild(messageElement);
-    messagesList.scrollTop = messagesList.scrollHeight;
+    
+    // Запускаем анимацию после добавления в DOM
+    requestAnimationFrame(() => {
+        messageElement.style.transition = 'opacity 0.4s ease, transform 0.4s ease';
+        messageElement.style.opacity = '1';
+        messageElement.style.transform = 'translateX(0)';
+    });
+    
+    // Плавная прокрутка к новому сообщению
+    setTimeout(() => {
+        messagesList.scrollTo({
+            top: messagesList.scrollHeight,
+            behavior: 'smooth'
+        });
+    }, 100);
 }
 
 // Экранирование HTML
@@ -324,17 +344,41 @@ async function startCall() {
             throw new Error('getUserMedia не поддерживается');
         }
 
-        // Запрос разрешений с более подробной обработкой
-        const constraints = {
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: 'user'
-            },
-            audio: true
-        };
+        console.log('Запрос доступа к медиа-устройствам...');
+        
+        // Сначала проверяем доступные устройства
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasVideo = devices.some(device => device.kind === 'videoinput');
+        const hasAudio = devices.some(device => device.kind === 'audioinput');
+        
+        console.log('Найдено устройств:', { hasVideo, hasAudio });
+        
+        if (!hasVideo && !hasAudio) {
+            throw new Error('Не найдено ни одного медиа-устройства');
+        }
 
+        // Запрос разрешений с более гибкими настройками
+        const constraints = {
+            video: hasVideo ? {
+                width: { ideal: 1280, min: 640 },
+                height: { ideal: 720, min: 480 },
+                facingMode: 'user'
+            } : false,
+            audio: hasAudio ? {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            } : false
+        };
+        
+        // Если нет ни видео, ни аудио, показываем ошибку
+        if (!constraints.video && !constraints.audio) {
+            throw new Error('Необходима камера или микрофон для звонка');
+        }
+
+        console.log('Запрос с настройками:', constraints);
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Медиа-поток получен успешно');
         
         document.getElementById('local-video').srcObject = localStream;
         
@@ -378,14 +422,22 @@ async function startCall() {
         
     } catch (error) {
         console.error('Ошибка при начале звонка:', error);
+        console.error('Имя ошибки:', error.name);
+        console.error('Сообщение:', error.message);
         
         // Более подробная обработка ошибок
-        if (error.name === 'NotAllowedError') {
-            alert('Пожалуйста, разрешите доступ к камере и микрофону');
-        } else if (error.name === 'NotFoundError') {
-            alert('Камера или микрофон не найдены');
-        } else if (error.name === 'OverconstrainedError') {
-            alert('Текущие настройки камеры не поддерживаются');
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            alert('Пожалуйста, разрешите доступ к камере и микрофону в настройках браузера');
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            alert('Камера или микрофон не найдены. Проверьте подключение устройств.');
+        } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+            alert('Не удалось получить доступ к камере/микрофону. Возможно, они используются другим приложением.');
+        } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+            alert('Текущие настройки камеры не поддерживаются. Попробуйте другое устройство.');
+        } else if (error.name === 'TypeError') {
+            alert('Ошибка конфигурации. Проверьте настройки медиа-устройств.');
+        } else if (error.name === 'SecurityError') {
+            alert('Доступ заблокирован по соображениям безопасности. Используйте HTTPS.');
         } else {
             alert('Не удалось получить доступ к камере и микрофону: ' + error.message);
         }
@@ -397,10 +449,30 @@ async function acceptCall() {
     if (isInCall) return;
     
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true
-        });
+        console.log('Принятие звонка...');
+        
+        // Проверяем доступные устройства
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasVideo = devices.some(device => device.kind === 'videoinput');
+        const hasAudio = devices.some(device => device.kind === 'audioinput');
+        
+        const constraints = {
+            video: hasVideo ? {
+                width: { ideal: 1280, min: 640 },
+                height: { ideal: 720, min: 480 }
+            } : false,
+            audio: hasAudio ? {
+                echoCancellation: true,
+                noiseSuppression: true
+            } : false
+        };
+        
+        if (!constraints.video && !constraints.audio) {
+            throw new Error('Необходима камера или микрофон для звонка');
+        }
+        
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('Медиа-поток получен при принятии звонка');
         
         document.getElementById('local-video').srcObject = localStream;
         
@@ -447,7 +519,19 @@ async function acceptCall() {
         
     } catch (error) {
         console.error('Ошибка при принятии звонка:', error);
-        alert('Не удалось получить доступ к камере и микрофону');
+        console.error('Имя ошибки:', error.name);
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+            alert('Пожалуйста, разрешите доступ к камере и микрофону в настройках браузера');
+        } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+            alert('Камера или микрофон не найдены. Проверьте подключение устройств.');
+        } else if (error.name === 'NotReadableError') {
+            alert('Не удалось получить доступ к камере/микрофону. Возможно, они используются другим приложением.');
+        } else {
+            alert('Не удалось получить доступ к камере и микрофону: ' + error.message);
+        }
+        
+        hideIncomingCallModal();
     }
 }
 
@@ -603,10 +687,33 @@ function logout() {
 }
 
 // Показ уведомлений
-function showNotification(message) {
-    // Простое уведомление через alert
-    // В реальном приложении можно использовать toast уведомления
-    console.log('Уведомление:', message);
+function showNotification(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        console.log('Уведомление:', message);
+        return;
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    // Иконка в зависимости от типа
+    let icon = 'ℹ️'; // info
+    if (type === 'success') icon = '✅';
+    else if (type === 'error') icon = '❌';
+    else if (type === 'warning') icon = '⚠️';
+    
+    toast.innerHTML = `
+        <span class="toast-icon">${icon}</span>
+        <span class="toast-message">${escapeHtml(message)}</span>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Автоматическое удаление через 3 секунды
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
 }
 
 // Обработка ошибок
@@ -639,10 +746,10 @@ function shareRoom() {
         // Резервный метод копирования ссылки
         const shareUrl = `${window.location.origin}?room=${currentRoomId}`;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            showNotification('Ссылка на комнату скопирована');
+            showNotification('Ссылка на комнату скопирована', 'success');
         }).catch(err => {
             console.error('Не удалось скопировать ссылку:', err);
-            showNotification('Не удалось скопировать ссылку');
+            showNotification('Не удалось скопировать ссылку', 'error');
         });
     }
 }
