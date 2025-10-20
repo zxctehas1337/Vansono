@@ -210,7 +210,7 @@ function updateUsersList(users) {
     
     users.forEach(user => {
         const li = document.createElement('li');
-        li.textContent = `${user.nickname} (${user.username})`;
+        li.textContent = `${user.nickname}`;
         li.dataset.userId = user.userId;
         usersList.appendChild(li);
     });
@@ -220,7 +220,7 @@ function updateUsersList(users) {
 function addUserToList(userData) {
     const usersList = document.getElementById('users-list');
     const li = document.createElement('li');
-    li.textContent = `${userData.nickname} (${userData.username})`;
+    li.textContent = `${userData.nickname}`;
     li.dataset.userId = userData.userId;
     usersList.appendChild(li);
 }
