@@ -103,6 +103,7 @@
     <div id="incoming-call-modal" class="modal hidden">
         <div class="modal-content">
             <h3>Incoming call</h3>
+            <div id="caller-avatar" class="caller-avatar"></div>
             <p><span id="caller-name">-</span> is calling you...</p>
             <div class="call-buttons">
                 <button id="accept-call-btn" class="btn-accept" style="margin-right:8px;">
@@ -127,11 +128,23 @@
 
     <!-- Видео контейнер -->
     <div id="video-container" class="video-container hidden">
-        <div class="video-grid">
-            <video id="local-video" autoplay muted></video>
-            <video id="remote-video" autoplay></video>
+        <div class="call-grid">
+            <div class="call-participant local-participant" id="local-participant">
+                <div class="avatar-container" id="local-avatar-container">
+                    <div class="avatar" id="local-avatar"></div>
+                </div>
+                <div class="participant-name" id="local-name">You</div>
+                <video id="local-video" autoplay muted style="display: none;"></video>
+            </div>
+            <div class="call-participant remote-participant" id="remote-participant">
+                <div class="avatar-container" id="remote-avatar-container">
+                    <div class="avatar" id="remote-avatar"></div>
+                </div>
+                <div class="participant-name" id="remote-name">User</div>
+                <video id="remote-video" autoplay style="display: none;"></video>
+            </div>
         </div>
-        <button id="close-video-btn" class="btn-close-video" title="Close Video">
+        <button id="close-video-btn" class="btn-close-video" title="Close Call">
             <!-- Close SVG Icon (X) -->
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" style="vertical-align:middle;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <line x1="18" y1="6" x2="6" y2="18" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>

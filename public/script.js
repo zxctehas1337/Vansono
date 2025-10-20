@@ -6,6 +6,7 @@ let localStream = null;
 let remoteStream = null;
 let peerConnection = null;
 let isInCall = false;
+let incomingCallData = null; // Новая переменная для хранения данных входящего звонка
 
 // WebRTC конфигурация
 const rtcConfig = {
@@ -166,6 +167,14 @@ function setupSocketListeners() {
     
     // WebRTC события
     socket.on('incoming-call', function(data) {
+        // Если уже в звонке, отклоняем
+        if (isInCall) {
+            socket.emit('reject-call', { to: data.from });
+            return;
+        }
+
+        // Сохраняем данные входящего звонка
+        incomingCallData = data;
         showIncomingCallModal(data.fromUser);
     });
     
@@ -231,8 +240,6 @@ function handleLogin(e) {
     // Переход к экрану чата
     document.getElementById('login-screen').classList.remove('active');
     document.getElementById('chat-screen').classList.add('active');
-    
-    showNotification('Добро пожаловать в чат!', 'success');
 }
 
 // Обработка отправки сообщения
@@ -296,24 +303,81 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-// Обновление списка пользователей
+// Функция генерации аватара
+function generateAvatar(username, size = 100) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    // Генерация случайного цвета на основе username
+    const hash = username.split('').reduce((acc, char) => char.charCodeAt(0) + ((acc << 5) - acc), 0);
+    const hue = hash % 360;
+    const saturation = 50 + (hash % 20);
+    const lightness = 50 + (hash % 20);
+
+    // Заливка фона
+    ctx.fillStyle = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    ctx.fillRect(0, 0, size, size);
+
+    // Текст аватара (первая буква)
+    ctx.fillStyle = 'white';
+    ctx.font = `${size * 0.6}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(username[0].toUpperCase(), size / 2, size / 2);
+
+    return canvas.toDataURL();
+}
+
+// Обновление функции updateUsersList для добавления аватаров
 function updateUsersList(users) {
     const usersList = document.getElementById('users-list');
     usersList.innerHTML = '';
     
     users.forEach(user => {
         const li = document.createElement('li');
-        li.textContent = `${user.nickname}`;
+        
+        // Создаем элемент аватара
+        const avatarImg = document.createElement('img');
+        avatarImg.src = generateAvatar(user.nickname, 40);
+        avatarImg.className = 'user-avatar';
+        avatarImg.style.width = '40px';
+        avatarImg.style.height = '40px';
+        avatarImg.style.borderRadius = '50%';
+        avatarImg.style.marginRight = '10px';
+
+        li.appendChild(avatarImg);
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = `${user.nickname}`;
+        li.appendChild(nameSpan);
+        
         li.dataset.userId = user.userId;
         usersList.appendChild(li);
     });
 }
 
-// Добавление пользователя в список
+// Обновление функции addUserToList для добавления аватаров
 function addUserToList(userData) {
     const usersList = document.getElementById('users-list');
     const li = document.createElement('li');
-    li.textContent = `${userData.nickname}`;
+    
+    // Создаем элемент аватара
+    const avatarImg = document.createElement('img');
+    avatarImg.src = generateAvatar(userData.nickname, 40);
+    avatarImg.className = 'user-avatar';
+    avatarImg.style.width = '40px';
+    avatarImg.style.height = '40px';
+    avatarImg.style.borderRadius = '50%';
+    avatarImg.style.marginRight = '10px';
+
+    li.appendChild(avatarImg);
+    
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = `${userData.nickname}`;
+    li.appendChild(nameSpan);
+    
     li.dataset.userId = userData.userId;
     usersList.appendChild(li);
 }
@@ -336,23 +400,44 @@ function updateUserCount() {
 
 // Начало звонка
 async function startCall() {
+    // Проверка наличия пользователей в комнате
+    const usersList = document.getElementById('users-list');
+    if (usersList.children.length <= 1) {
+        showNotification('Нужно больше пользователей для звонка', 'warning');
+        return;
+    }
+
     if (isInCall) return;
-    
+
+    let localVideo, remoteVideo, videoContainer, callBtn, endCallBtn;
+
     try {
+        // Кэшируем ссылки на элементы, чтобы не было ошибок если их нет
+        localVideo = document.getElementById('local-video');
+        remoteVideo = document.getElementById('remote-video');
+        videoContainer = document.getElementById('video-container');
+        callBtn = document.getElementById('call-btn');
+        endCallBtn = document.getElementById('end-call-btn');
+
+        // Проверка наличия всех нужных DOM-элементов
+        if (!localVideo || !remoteVideo || !videoContainer || !callBtn || !endCallBtn) {
+            throw new Error('Некоторые элементы интерфейса звонка не найдены');
+        }
+
         // Проверка поддержки getUserMedia
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             throw new Error('getUserMedia не поддерживается');
         }
 
         console.log('Запрос доступа к медиа-устройствам...');
-        
-        // Сначала проверяем доступные устройства
+
+        // Проверяем доступные устройства
         const devices = await navigator.mediaDevices.enumerateDevices();
         const hasVideo = devices.some(device => device.kind === 'videoinput');
         const hasAudio = devices.some(device => device.kind === 'audioinput');
-        
+
         console.log('Найдено устройств:', { hasVideo, hasAudio });
-        
+
         if (!hasVideo && !hasAudio) {
             throw new Error('Не найдено ни одного медиа-устройства');
         }
@@ -370,7 +455,7 @@ async function startCall() {
                 autoGainControl: true
             } : false
         };
-        
+
         // Если нет ни видео, ни аудио, показываем ошибку
         if (!constraints.video && !constraints.audio) {
             throw new Error('Необходима камера или микрофон для звонка');
@@ -379,23 +464,23 @@ async function startCall() {
         console.log('Запрос с настройками:', constraints);
         localStream = await navigator.mediaDevices.getUserMedia(constraints);
         console.log('Медиа-поток получен успешно');
-        
-        document.getElementById('local-video').srcObject = localStream;
-        
+
+        localVideo.srcObject = localStream;
+
         // Создание peer connection
         peerConnection = new RTCPeerConnection(rtcConfig);
-        
+
         // Добавление локального потока
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
-        
+
         // Обработка удаленного потока
         peerConnection.ontrack = function(event) {
             remoteStream = event.streams[0];
-            document.getElementById('remote-video').srcObject = remoteStream;
+            remoteVideo.srcObject = remoteStream;
         };
-        
+
         // Обработка ICE кандидатов
         peerConnection.onicecandidate = function(event) {
             if (event.candidate) {
@@ -405,26 +490,35 @@ async function startCall() {
                 });
             }
         };
-        
+
         // Создание offer
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
-        
+
         socket.emit('webrtc-offer', { offer });
         socket.emit('start-call');
-        
-        // Показать видео контейнер
-        document.getElementById('video-container').classList.remove('hidden');
-        document.getElementById('call-btn').classList.add('hidden');
-        document.getElementById('end-call-btn').classList.remove('hidden');
-        
+
+        // Показать видео контейнер, скрыть кнопку звонка и показать крестик завершения
+        videoContainer.classList.remove('hidden');
+        callBtn.classList.add('hidden');
+        endCallBtn.classList.remove('hidden');
+
+        // Обработчик завершения звонка по "крестику"
+        endCallBtn.onclick = endCall;
+
         isInCall = true;
-        
+
     } catch (error) {
         console.error('Ошибка при начале звонка:', error);
         console.error('Имя ошибки:', error.name);
         console.error('Сообщение:', error.message);
-        
+
+        // Если на старте не найден хотя бы один элемент управления звонком, показываем alert
+        if (error.message && error.message.includes('элементы интерфейса звонка')) {
+            alert('Ошибка интерфейса: ' + error.message);
+            return;
+        }
+
         // Более подробная обработка ошибок
         if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
             alert('Пожалуйста, разрешите доступ к камере и микрофону в настройках браузера');
@@ -435,18 +529,59 @@ async function startCall() {
         } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
             alert('Текущие настройки камеры не поддерживаются. Попробуйте другое устройство.');
         } else if (error.name === 'TypeError') {
-            alert('Ошибка конфигурации. Проверьте настройки медиа-устройств.');
+            alert('Ошибка конфигурации или интерфейса. Проверьте наличие необходимых элементов на странице и настройки медиа-устройств.');
         } else if (error.name === 'SecurityError') {
             alert('Доступ заблокирован по соображениям безопасности. Используйте HTTPS.');
         } else {
             alert('Не удалось получить доступ к камере и микрофону: ' + error.message);
         }
+
+        // Если был начат звонок, но упали на показе интерфейса, делаем откат визуального состояния (грубый механизм)
+        try {
+            if (videoContainer && videoContainer.classList) videoContainer.classList.add('hidden');
+            if (callBtn && callBtn.classList) callBtn.classList.remove('hidden');
+            if (endCallBtn && endCallBtn.classList) endCallBtn.classList.add('hidden');
+        } catch (_) { }
     }
+}
+
+// Реализация завершения звонка (крестик), чтобы он работал всегда
+function endCall() {
+    // Сброс соединения и потоков
+    if (peerConnection) {
+        peerConnection.ontrack = null;
+        peerConnection.onicecandidate = null;
+        peerConnection.close();
+        peerConnection = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+    if (remoteStream) {
+        remoteStream = null;
+    }
+
+    // Скрытие видеоблоков и возврат кнопок в исходное состояние
+    const videoContainer = document.getElementById('video-container');
+    const callBtn = document.getElementById('call-btn');
+    const endCallBtn = document.getElementById('end-call-btn');
+    const localVideo = document.getElementById('local-video');
+    const remoteVideo = document.getElementById('remote-video');
+
+    if (videoContainer && videoContainer.classList) videoContainer.classList.add('hidden');
+    if (callBtn && callBtn.classList) callBtn.classList.remove('hidden');
+    if (endCallBtn && endCallBtn.classList) endCallBtn.classList.add('hidden');
+    if (localVideo) localVideo.srcObject = null;
+    if (remoteVideo) remoteVideo.srcObject = null;
+
+    isInCall = false;
+    socket.emit('end-call');
 }
 
 // Принятие звонка
 async function acceptCall() {
-    if (isInCall) return;
+    if (isInCall || !incomingCallData) return;
     
     try {
         console.log('Принятие звонка...');
@@ -509,6 +644,12 @@ async function acceptCall() {
             to: 'all'
         });
         
+        // Добавляем идентификатор удаленного пользователя
+        peerConnection.remoteUserId = incomingCallData.from;
+
+        // Сбрасываем данные входящего звонка
+        incomingCallData = null;
+
         // Показать видео контейнер
         document.getElementById('video-container').classList.remove('hidden');
         document.getElementById('call-btn').classList.add('hidden');
@@ -537,7 +678,10 @@ async function acceptCall() {
 
 // Отклонение звонка
 function rejectCall() {
-    socket.emit('reject-call', { to: 'all' });
+    if (!incomingCallData) return;
+
+    socket.emit('reject-call', { to: incomingCallData.from });
+    incomingCallData = null;
     hideIncomingCallModal();
 }
 
@@ -567,8 +711,20 @@ function endCall() {
     document.getElementById('call-btn').classList.remove('hidden');
     document.getElementById('end-call-btn').classList.add('hidden');
     
+    // Очистка видео элементов
+    const localVideo = document.getElementById('local-video');
+    const remoteVideo = document.getElementById('remote-video');
+    const localAvatar = document.getElementById('local-avatar');
+    const remoteAvatar = document.getElementById('remote-avatar');
+
+    if (localVideo) localVideo.srcObject = null;
+    if (remoteVideo) remoteVideo.srcObject = null;
+    if (localAvatar) localAvatar.innerHTML = '';
+    if (remoteAvatar) remoteAvatar.innerHTML = '';
+
     socket.emit('end-call');
     isInCall = false;
+    incomingCallData = null;
 }
 
 // Закрытие видео
@@ -639,8 +795,43 @@ async function handleWebRTCIceCandidate(candidate, from) {
 
 // Показ модального окна входящего звонка
 function showIncomingCallModal(callerUser) {
-    document.getElementById('caller-name').textContent = callerUser.nickname;
-    document.getElementById('incoming-call-modal').classList.remove('hidden');
+    const incomingCallModal = document.getElementById('incoming-call-modal');
+    const callerNameEl = document.getElementById('caller-name');
+    const callerAvatarEl = document.getElementById('caller-avatar');
+    const acceptCallBtn = document.getElementById('accept-call-btn');
+    const declineCallBtn = document.getElementById('decline-call-btn');
+
+    // Установка имени и аватара звонящего
+    callerNameEl.textContent = callerUser.nickname;
+    
+    // Создание аватара звонящего
+    const callerAvatar = document.createElement('img');
+    callerAvatar.src = generateAvatar(callerUser.nickname, 150);
+    callerAvatar.style.width = '150px';
+    callerAvatar.style.height = '150px';
+    callerAvatar.style.borderRadius = '50%';
+    callerAvatarEl.innerHTML = '';
+    callerAvatarEl.appendChild(callerAvatar);
+
+    // Обработчики кнопок
+    const handleAccept = () => {
+        acceptCall();
+        incomingCallModal.classList.add('hidden');
+        acceptCallBtn.removeEventListener('click', handleAccept);
+        declineCallBtn.removeEventListener('click', handleDecline);
+    };
+
+    const handleDecline = () => {
+        rejectCall();
+        incomingCallModal.classList.add('hidden');
+        acceptCallBtn.removeEventListener('click', handleAccept);
+        declineCallBtn.removeEventListener('click', handleDecline);
+    };
+
+    acceptCallBtn.addEventListener('click', handleAccept);
+    declineCallBtn.addEventListener('click', handleDecline);
+
+    incomingCallModal.classList.remove('hidden');
 }
 
 // Скрытие модального окна входящего звонка
@@ -696,20 +887,6 @@ function showNotification(message, type = 'info') {
     
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
-    // Иконка в зависимости от типа
-    let icon = 'ℹ️'; // info
-    if (type === 'success') icon = '✅';
-    else if (type === 'error') icon = '❌';
-    else if (type === 'warning') icon = '⚠️';
-    
-    toast.innerHTML = `
-        <span class="toast-icon">${icon}</span>
-        <span class="toast-message">${escapeHtml(message)}</span>
-    `;
-    
-    toastContainer.appendChild(toast);
-    
     // Автоматическое удаление через 3 секунды
     setTimeout(() => {
         toast.remove();

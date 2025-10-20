@@ -172,10 +172,14 @@ io.on('connection', (socket) => {
         const user = users.get(socket.id);
         if (!user) return;
         
-        socket.to(user.roomId).emit('incoming-call', {
-            from: socket.id,
-            fromUser: user
-        });
+        const room = rooms.get(user.roomId);
+        // Проверяем, есть ли другие пользователи в комнате
+        if (room && room.users.size > 1) {
+            socket.to(user.roomId).emit('incoming-call', {
+                from: socket.id,
+                fromUser: user
+            });
+        }
     });
 
     // Отклонение звонка
