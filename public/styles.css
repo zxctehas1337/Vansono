@@ -134,12 +134,28 @@ body {
 }
 
 .btn-call {
-    background: var(--success-color);
+    background: linear-gradient(135deg, #28a745 0%, #218838 100%);
     color: white;
+    border: 2px solid rgba(255,255,255,0.3);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
 }
 
 .btn-call:hover {
-    background: #218838;
+    background: linear-gradient(135deg, #218838 0%, #1e7e34 100%);
+    transform: scale(1.1);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+}
+
+.btn-call svg {
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));
 }
 
 .btn-end-call {
@@ -182,6 +198,20 @@ body {
     background: var(--bg-tertiary);
 }
 
+.btn-share {
+    background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+    color: white;
+    border: 2px solid rgba(255,255,255,0.2);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.btn-share:hover {
+    background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+    transform: scale(1.05);
+    box-shadow: 0 6px 8px rgba(0,0,0,0.2);
+}
+
 /* Основной экран чата */
 #chat-screen {
     flex-direction: row;
@@ -190,24 +220,11 @@ body {
 /* Sidebar */
 .sidebar {
     width: 300px;
+    height: 100vh;
     background: var(--bg-secondary);
-    border-right: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
-    height: 100vh;
-}
-
-.sidebar-header {
-    padding: 1rem;
-    border-bottom: 1px solid var(--border-color);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.sidebar-header h2 {
-    color: var(--accent-color);
-    font-size: 1.5rem;
+    border-right: 1px solid var(--border-color);
 }
 
 .room-info {
@@ -215,20 +232,18 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
-.room-info div {
-    margin-bottom: 0.5rem;
-    color: var(--text-secondary);
-}
-
 .users-list {
     flex: 1;
-    padding: 1.5rem 1rem 1rem 1rem;
     overflow-y: auto;
-    background: linear-gradient(130deg, var(--bg-tertiary) 85%, var(--bg-secondary) 100%);
-    border-radius: 0 0 12px 12px;
-    box-shadow: 0 4px 8px var(--shadow);
-    margin-bottom: 0.5rem;
+    padding: 1rem;
 }
+
+.sidebar-settings {
+    padding: 1rem;
+    border-top: 1px solid var(--border-color);
+    margin-top: auto; /* This pushes the logout button to the bottom */
+}
+
 
 .users-list h3 {
     margin-bottom: 1rem;
@@ -281,36 +296,6 @@ body {
     border-color: var(--accent-hover);
     font-weight: 700;
     opacity: 1;
-}
-
-/* Настройки */
-.settings-panel {
-    padding: 1rem;
-    border-top: 1px solid var(--border-color);
-}
-
-.settings-panel h3 {
-    margin-bottom: 1rem;
-    color: var(--text-primary);
-}
-
-.setting-group {
-    margin-bottom: 1rem;
-}
-
-.setting-group label {
-    display: block;
-    margin-bottom: 0.5rem;
-    color: var(--text-secondary);
-}
-
-.setting-group select {
-    width: 100%;
-    padding: 0.5rem;
-    border: 1px solid var(--border-color);
-    border-radius: 5px;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
 }
 
 /* Основная область чата */
@@ -447,7 +432,34 @@ body {
     justify-content: center;
     gap: 1rem;
 }
-
+.call-buttons button {
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    background: var(--success-color);
+    color: white;
+    border-radius: 50%;
+    position: relative;
+}
+.call-buttons button:hover {
+    background: #218838;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    position: relative;
+    box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
+    transition: all 0.3s ease;
+    transform: scale(1.1);
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+    outline: none;
+}
+.call-buttons button:hover {
+    background-color: #45a049;
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
 /* Видео контейнер */
 .video-container {
     position: fixed;
@@ -492,32 +504,6 @@ body {
 .btn-close-video:hover {
     background: #c82333;
 }
-
-/* Темы */
-.theme-dark {
-    --bg-primary: #1a1a1a;
-    --bg-secondary: #2d2d2d;
-    --bg-tertiary: #3a3a3a;
-    --text-primary: #ffffff;
-    --text-secondary: #cccccc;
-    --text-muted: #999999;
-    --accent-color: #007bff;
-    --accent-hover: #0056b3;
-    --border-color: #444444;
-}
-
-.theme-monokai {
-    --bg-primary: #272822;
-    --bg-secondary: #3e3d32;
-    --bg-tertiary: #49483e;
-    --text-primary: #f8f8f2;
-    --text-secondary: #f8f8f2;
-    --text-muted: #75715e;
-    --accent-color: #a6e22e;
-    --accent-hover: #8bc34a;
-    --border-color: #49483e;
-}
-
 .theme-nordwind {
     --bg-primary: #2e3440;
     --bg-secondary: #3b4252;
@@ -581,4 +567,21 @@ body {
         min-width: auto;
         width: 90%;
     }
+}
+.call-controls {
+    display: flex;
+    gap: 1rem;
+}
+.btn-call {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-call:hover {
+    background: #218838;
+}
+
+.btn-end-call {
+    background: var(--danger-color);
+    color: white;
 }

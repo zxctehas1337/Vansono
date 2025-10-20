@@ -21,6 +21,42 @@ function generateRoomId(length = 8) {
 // Хранение данных в памяти
 const rooms = new Map();
 const users = new Map();
+const userPresence = new Map(); // Новая карта для отслеживания присутствия
+
+// Функция для проверки и удаления неактивных пользователей
+function cleanupInactiveUsers() {
+    const now = Date.now();
+    const INACTIVE_TIMEOUT = 2 * 60 * 1000; // 2 минуты неактивности
+
+    userPresence.forEach((lastActive, userId) => {
+        if (now - new Date(lastActive).getTime() > INACTIVE_TIMEOUT) {
+            const user = users.get(userId);
+            if (user) {
+                const room = rooms.get(user.roomId);
+                if (room) {
+                    room.users.delete(userId);
+                    
+                    // Уведомить остальных пользователей
+                    io.to(user.roomId).emit('user-left', {
+                        userId: userId,
+                        username: user.username
+                    });
+                    
+                    // Удалить комнату если она пустая
+                    if (room.users.size === 0) {
+                        rooms.delete(user.roomId);
+                    }
+                }
+                
+                users.delete(userId);
+                userPresence.delete(userId);
+            }
+        }
+    });
+}
+
+// Запуск очистки неактивных пользователей каждую минуту
+setInterval(cleanupInactiveUsers, 60000);
 
 // Статические файлы
 app.use(express.static(path.join(__dirname, 'public')));
@@ -32,7 +68,7 @@ app.get('/', (req, res) => {
 
 // Socket.io обработчики
 io.on('connection', (socket) => {
-    console.log('Пользователь подключился:', socket.id);
+    console.log('');
 
     // Присоединение к комнате
     socket.on('join-room', (data) => {
@@ -79,8 +115,6 @@ io.on('connection', (socket) => {
             messages: room.messages,
             users: Array.from(room.users.values())
         });
-        
-        console.log(`${username} присоединился к комнате ${actualRoomId}`);
     });
 
     // Для сообщений id можно оставить uuid, чтобы не затрагивать другой функционал
@@ -161,6 +195,11 @@ io.on('connection', (socket) => {
         });
     });
 
+    // Обновление присутствия пользователя
+    socket.on('update-presence', (data) => {
+        userPresence.set(socket.id, data.lastActive);
+    });
+
     // Отключение пользователя
     socket.on('disconnect', () => {
         const user = users.get(socket.id);
@@ -182,9 +221,8 @@ io.on('connection', (socket) => {
             }
             
             users.delete(socket.id);
-        }
-        
-        console.log('Пользователь отключился:', socket.id);
+            userPresence.delete(socket.id);
+        }       
     });
 });
 

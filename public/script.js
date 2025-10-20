@@ -1,4 +1,4 @@
-// Глобальные переменные
+    // Глобальные переменные
 let socket;
 let currentUser = null;
 let currentRoom = null;
@@ -17,9 +17,8 @@ const rtcConfig = {
 
 // Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
+    setupEventListeners(); // Сначала навесим все слушатели, чтобы элементы были доступны
     initializeApp();
-    setupEventListeners();
-    loadSettings();
 });
 
 // Инициализация приложения
@@ -30,39 +29,95 @@ function initializeApp() {
     // Настройка обработчиков событий Socket.io
     setupSocketListeners();
     
-    // Установка темы по умолчанию
-    applyTheme('dark');
+    // Установка темы по умолчанию (без использования #theme-select, если его нет)
+    applyTheme('nordwind');
 }
 
 // Настройка обработчиков событий
 function setupEventListeners() {
     // Форма входа
-    document.getElementById('login-form').addEventListener('submit', handleLogin);
+    const loginForm = document.getElementById('login-form');
+    if (loginForm) loginForm.addEventListener('submit', handleLogin);
     
+    // Автоматическое добавление @ к username
+    const usernameInput = document.getElementById('username');
+    if (usernameInput) {
+        usernameInput.addEventListener('input', function(e) {
+            let value = e.target.value;
+            // Удаляем все символы кроме букв, цифр и @
+            value = value.replace(/[^a-zA-Z0-9@]/g, '');
+            // Если не начинается с @, добавляем его
+            if (!value.startsWith('@')) {
+                value = '@' + value.replace(/@/g, '');
+            } else {
+                // Удаляем все @ кроме первого
+                value = '@' + value.slice(1).replace(/@/g, '');
+            }
+            // Ограничиваем длину (@ + 12 символов)
+            if (value.length > 13) {
+                value = value.slice(0, 13);
+            }
+            e.target.value = value;
+        });
+        
+        // Устанавливаем @ при фокусе, если поле пустое
+        usernameInput.addEventListener('focus', function(e) {
+            if (!e.target.value) {
+                e.target.value = '@';
+            }
+        });
+    }
+    
+    // Валидация никнейма (только английские буквы и цифры)
+    const nicknameInput = document.getElementById('nickname');
+    if (nicknameInput) {
+        nicknameInput.addEventListener('input', function(e) {
+            let value = e.target.value;
+            // Удаляем все символы кроме английских букв и цифр
+            value = value.replace(/[^a-zA-Z0-9]/g, '');
+            // Ограничиваем длину до 12 символов
+            if (value.length > 12) {
+                value = value.slice(0, 12);
+            }
+            e.target.value = value;
+        });
+    }
+
     // Форма отправки сообщений
-    document.getElementById('message-form').addEventListener('submit', handleSendMessage);
+    const messageForm = document.getElementById('message-form');
+    if (messageForm) messageForm.addEventListener('submit', handleSendMessage);
+
     
     // Кнопки звонков
-    document.getElementById('call-btn').addEventListener('click', startCall);
-    document.getElementById('end-call-btn').addEventListener('click', endCall);
-    document.getElementById('accept-call-btn').addEventListener('click', acceptCall);
-    document.getElementById('reject-call-btn').addEventListener('click', rejectCall);
-    
-    // Настройки
-    document.getElementById('settings-btn').addEventListener('click', toggleSettings);
-    document.getElementById('theme-select').addEventListener('change', handleThemeChange);
-    document.getElementById('font-size').addEventListener('change', handleFontSizeChange);
-    document.getElementById('logout-btn').addEventListener('click', logout);
-    
+    const callBtn = document.getElementById('call-btn');
+    if (callBtn) callBtn.addEventListener('click', startCall);
+    const endCallBtn = document.getElementById('end-call-btn');
+    if (endCallBtn) endCallBtn.addEventListener('click', endCall);
+    const acceptCallBtn = document.getElementById('accept-call-btn');
+    if (acceptCallBtn) acceptCallBtn.addEventListener('click', acceptCall);
+    const rejectCallBtn = document.getElementById('reject-call-btn');
+    if (rejectCallBtn) rejectCallBtn.addEventListener('click', rejectCall);
+
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) logoutBtn.addEventListener('click', logout);
+
     // Видео
-    document.getElementById('close-video-btn').addEventListener('click', closeVideo);
-    
+    const closeVideoBtn = document.getElementById('close-video-btn');
+    if (closeVideoBtn) closeVideoBtn.addEventListener('click', closeVideo);
+
+    // Кнопка Share
+    const shareBtn = document.getElementById('share-btn');
+    if (shareBtn) shareBtn.addEventListener('click', shareRoom);
+
     // Закрытие модального окна при клике вне его
-    document.getElementById('incoming-call-modal').addEventListener('click', function(e) {
-        if (e.target === this) {
-            hideIncomingCallModal();
-        }
-    });
+    const incomingCallModal = document.getElementById('incoming-call-modal');
+    if (incomingCallModal) {
+        incomingCallModal.addEventListener('click', function(e) {
+            if (e.target === this) {
+                hideIncomingCallModal();
+            }
+        });
+    }
 }
 
 // Настройка обработчиков Socket.io
@@ -74,8 +129,12 @@ function setupSocketListeners() {
     // История комнаты
     socket.on('room-history', function(data) {
         currentRoom = data.roomId;
-        document.getElementById('current-room-id').textContent = data.roomId;
-        document.getElementById('user-count').textContent = data.users.length;
+        const currentRoomIdEl = document.getElementById('current-room-id');
+        if (currentRoomIdEl) currentRoomIdEl.textContent = data.roomId;
+
+        // ID user-count может отсутствовать на странице, поэтому делаем безопасную замену
+        const userCountEl = document.getElementById('user-count');
+        if (userCountEl) userCountEl.textContent = data.users.length;
         
         // Отображение истории сообщений
         data.messages.forEach(message => {
@@ -143,6 +202,20 @@ function handleLogin(e) {
     
     if (!username || !nickname) {
         alert('Пожалуйста, заполните все обязательные поля');
+        return;
+    }
+    
+    // Валидация nickname (только английские буквы и цифры, макс 12 символов)
+    const nicknameRegex = /^[a-zA-Z0-9]{1,12}$/;
+    if (!nicknameRegex.test(nickname)) {
+        alert('Никнейм должен содержать только английские буквы и цифры (максимум 12 символов)');
+        return;
+    }
+    
+    // Валидация username (начинается с @, английские буквы и цифры, макс 12 символов после @)
+    const usernameRegex = /^@[a-zA-Z0-9]{1,12}$/;
+    if (!usernameRegex.test(username)) {
+        alert('Юзернейм должен начинаться с @ и содержать только английские буквы и цифры (максимум 12 символов после @)');
         return;
     }
     
@@ -246,10 +319,22 @@ async function startCall() {
     if (isInCall) return;
     
     try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+        // Проверка поддержки getUserMedia
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('getUserMedia не поддерживается');
+        }
+
+        // Запрос разрешений с более подробной обработкой
+        const constraints = {
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: 'user'
+            },
             audio: true
-        });
+        };
+
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
         
         document.getElementById('local-video').srcObject = localStream;
         
@@ -293,7 +378,17 @@ async function startCall() {
         
     } catch (error) {
         console.error('Ошибка при начале звонка:', error);
-        alert('Не удалось получить доступ к камере и микрофону');
+        
+        // Более подробная обработка ошибок
+        if (error.name === 'NotAllowedError') {
+            alert('Пожалуйста, разрешите доступ к камере и микрофону');
+        } else if (error.name === 'NotFoundError') {
+            alert('Камера или микрофон не найдены');
+        } else if (error.name === 'OverconstrainedError') {
+            alert('Текущие настройки камеры не поддерживаются');
+        } else {
+            alert('Не удалось получить доступ к камере и микрофону: ' + error.message);
+        }
     }
 }
 
@@ -470,56 +565,22 @@ function hideIncomingCallModal() {
 }
 
 // Переключение настроек
-function toggleSettings() {
-    const settingsPanel = document.getElementById('settings-panel');
-    settingsPanel.classList.toggle('hidden');
-}
 
-// Обработка изменения темы
-function handleThemeChange(e) {
-    const theme = e.target.value;
-    applyTheme(theme);
-    saveSettings();
-}
 
 // Применение темы
 function applyTheme(theme) {
     document.body.className = `theme-${theme}`;
-    document.getElementById('theme-select').value = theme;
+    const themeSelector = document.getElementById('theme-selector')
+    if (!themeSelector) {
+        console.error('Theme selector not found');
+        return;
+    }
+    themeSelector.value = theme;
 }
 
-// Обработка изменения размера шрифта
-function handleFontSizeChange(e) {
-    const fontSize = e.target.value;
-    document.body.className = document.body.className.replace(/font-\w+/g, '');
-    document.body.classList.add(`font-${fontSize}`);
-    saveSettings();
-}
 
-// Сохранение настроек
-function saveSettings() {
-    const theme = document.getElementById('theme-select').value;
-    const fontSize = document.getElementById('font-size').value;
-    
-    const settings = {
-        theme,
-        fontSize
-    };
-    
-    localStorage.setItem('messenger-settings', JSON.stringify(settings));
-}
 
 // Загрузка настроек
-function loadSettings() {
-    const savedSettings = localStorage.getItem('messenger-settings');
-    
-    if (savedSettings) {
-        const settings = JSON.parse(savedSettings);
-        applyTheme(settings.theme || 'dark');
-        document.getElementById('font-size').value = settings.fontSize || 'medium';
-        document.body.classList.add(`font-${settings.fontSize || 'medium'}`);
-    }
-}
 
 // Выход из чата
 function logout() {
@@ -562,3 +623,39 @@ window.addEventListener('beforeunload', function() {
         socket.disconnect();
     }
 });
+
+// Функция для обмена комнатой
+function shareRoom() {
+    const currentRoomId = document.getElementById('current-room-id').textContent;
+    
+    // Проверка поддержки Web Share API
+    if (navigator.share) {
+        navigator.share({
+            title: 'Присоединяйся к чату',
+            text: 'Присоединись к моей комнате в Kik Messenger',
+            url: `${window.location.origin}?room=${currentRoomId}`
+        }).catch(console.error);
+    } else {
+        // Резервный метод копирования ссылки
+        const shareUrl = `${window.location.origin}?room=${currentRoomId}`;
+        navigator.clipboard.writeText(shareUrl).then(() => {
+            showNotification('Ссылка на комнату скопирована');
+        }).catch(err => {
+            console.error('Не удалось скопировать ссылку:', err);
+            showNotification('Не удалось скопировать ссылку');
+        });
+    }
+}
+
+// Обновление присутствия пользователей
+function updateUserPresence() {
+    if (socket && currentRoom) {
+        socket.emit('update-presence', {
+            roomId: currentRoom,
+            lastActive: new Date().toISOString()
+        });
+    }
+}
+
+// Периодическое обновление присутствия каждые 30 секунд
+setInterval(updateUserPresence, 30000);
