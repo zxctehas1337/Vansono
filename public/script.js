@@ -69,7 +69,6 @@ function setupEventListeners() {
 function setupSocketListeners() {
     // Подключение к серверу
     socket.on('connect', function() {
-        console.log('Подключен к серверу');
     });
     
     // История комнаты

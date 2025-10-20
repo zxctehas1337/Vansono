@@ -478,18 +478,6 @@ body {
     --border-color: #49483e;
 }
 
-.theme-gradient {
-    --bg-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --bg-secondary: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --bg-tertiary: rgba(255, 255, 255, 0.1);
-    --text-primary: #ffffff;
-    --text-secondary: #ffffff;
-    --text-muted: rgba(255, 255, 255, 0.7);
-    --accent-color: #ff6b6b;
-    --accent-hover: #ff5252;
-    --border-color: rgba(255, 255, 255, 0.2);
-}
-
 .theme-nordwind {
     --bg-primary: #2e3440;
     --bg-secondary: #3b4252;
@@ -500,18 +488,6 @@ body {
     --accent-color: #88c0d0;
     --accent-hover: #5e81ac;
     --border-color: #4c566a;
-}
-
-.theme-light {
-    --bg-primary: #ffffff;
-    --bg-secondary: #f8f9fa;
-    --bg-tertiary: #e9ecef;
-    --text-primary: #212529;
-    --text-secondary: #495057;
-    --text-muted: #6c757d;
-    --accent-color: #007bff;
-    --accent-hover: #0056b3;
-    --border-color: #dee2e6;
 }
 
 /* Размеры шрифтов */

@@ -41,11 +41,36 @@
                 <h2>Kik Messenger</h2>
                 <button id="settings-btn" title="Settings">
                     <!-- Gear SVG Icon -->
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" style="vertical-align:middle;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2" fill="none"/>
-                        <path stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                            d="M19.4 15A1.7 1.7 0 0021 13.3V10.6A1.7 1.7 0 0019.4 9M4.6 9A1.7 1.7 0 013 10.7v2.7a1.7 1.7 0 001.6 1.7M13.3 3h-2.7A1.7 1.7 0 009 4.6v1.9M15 19.4v1.9A1.7 1.7 0 0113.3 21h-2.7A1.7 1.7 0 019 19.4v-1.9"/>
-                    </svg>
+                    <svg width="24" height="24" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                          <clipPath id="gear-clip">
+                            <circle cx="50" cy="50" r="45"/>
+                          </clipPath>
+                        </defs>
+                        
+                        <!-- Основной круг шестерёнки -->
+                        <circle cx="50" cy="50" r="30" fill="#4a5568" stroke="#2d3748" stroke-width="2"/>
+                        
+                        <!-- Центральное отверстие -->
+                        <circle cx="50" cy="50" r="10" fill="#e2e8f0"/>
+                        
+                        <!-- Зубья шестерёнки -->
+                        <g clip-path="url(#gear-clip)">
+                          <!-- Вертикальные зубья -->
+                          <rect x="48" y="5" width="4" height="15" fill="#4a5568"/>
+                          <rect x="48" y="80" width="4" height="15" fill="#4a5568"/>
+                          
+                          <!-- Горизонтальные зубья -->
+                          <rect x="5" y="48" width="15" height="4" fill="#4a5568"/>
+                          <rect x="80" y="48" width="15" height="4" fill="#4a5568"/>
+                          
+                          <!-- Диагональные зубья -->
+                          <rect x="65" y="20" width="4" height="15" transform="rotate(45 67 27.5)" fill="#4a5568"/>
+                          <rect x="65" y="65" width="4" height="15" transform="rotate(135 67 72.5)" fill="#4a5568"/>
+                          <rect x="20" y="20" width="4" height="15" transform="rotate(-45 33 27.5)" fill="#4a5568"/>
+                          <rect x="20" y="65" width="4" height="15" transform="rotate(-135 33 72.5)" fill="#4a5568"/>
+                        </g>
+                      </svg>
                 </button>
             </div>
             
@@ -67,9 +92,7 @@
                     <select id="theme-select">
                         <option value="dark">Dark</option>
                         <option value="monokai">Monokai</option>
-                        <option value="gradient">Gradient</option>
                         <option value="nordwind">Nordwind</option>
-                        <option value="light">Light</option>
                     </select>
                 </div>
                 <div class="setting-group">

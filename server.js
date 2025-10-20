@@ -1,12 +1,22 @@
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
-const { v4: uuidv4 } = require('uuid');
+// const { v4: uuidv4 } = require('uuid'); // Удаляем, не нужен для roomId
 const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
+
+// Функция для генерации случайного roomId из 8 символов (латинские буквы и цифры)
+function generateRoomId(length = 8) {
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
 
 // Хранение данных в памяти
 const rooms = new Map();
@@ -27,9 +37,11 @@ io.on('connection', (socket) => {
     // Присоединение к комнате
     socket.on('join-room', (data) => {
         const { username, roomId, nickname } = data;
-        
-        // Создать комнату если ID пустой
-        const actualRoomId = roomId || uuidv4();
+
+        // Создать комнату если ID пустой (8 символов, буквы и цифры)
+        const actualRoomId = roomId && roomId.length === 8 
+            ? roomId 
+            : generateRoomId(8);
         
         // Сохранить информацию о пользователе
         users.set(socket.id, {
@@ -71,6 +83,9 @@ io.on('connection', (socket) => {
         console.log(`${username} присоединился к комнате ${actualRoomId}`);
     });
 
+    // Для сообщений id можно оставить uuid, чтобы не затрагивать другой функционал
+    const { v4: uuidv4 } = require('uuid');
+
     // Отправка сообщения
     socket.on('send-message', (data) => {
         const user = users.get(socket.id);
@@ -96,6 +111,8 @@ io.on('connection', (socket) => {
 
     // WebRTC сигналинг
     socket.on('webrtc-offer', (data) => {
+        const user = users.get(socket.id);
+        if (!user) return;
         socket.to(user.roomId).emit('webrtc-offer', {
             offer: data.offer,
             from: socket.id
